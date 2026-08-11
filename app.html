@@ -40,6 +40,7 @@
     font-size: 17px; cursor: pointer; display: grid; place-items: center;
   }
   .fab:active { background: var(--raise); }
+  a.fab { text-decoration: none; font-size: 19px; }
   .fab[aria-pressed="true"] { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
 
   /* ---------- Dock in basso ---------- */
@@ -134,6 +135,7 @@
 <div class="fabs">
   <button class="fab" id="btnMap" aria-pressed="false" title="Scegli il punto sulla mappa">🗺️</button>
   <button class="fab" id="btnSun" title="Guarda verso il sole">☀️</button>
+  <a class="fab" href="index.html" title="Torna alla pagina del progetto">←</a>
 </div>
 
 <div id="hint">Tocca 🗺️ per scegliere il punto</div>
@@ -280,6 +282,11 @@ function render() {
   updateLocalEclipse(pos.lat, pos.lng);
   const cam = getCam(), f = focal(cam, w);
 
+  // posizioni: servono prima, per non scriverci sopra le etichette orarie
+  const ph = phaseAt(state.date, pos.lat, pos.lng);
+  const ps = project(ph.s.az, ph.s.alt, cam, w, h);
+  const pm = project(ph.m.az, ph.m.alt, cam, w, h);
+
   // orizzonte
   ctx.save();
   ctx.strokeStyle = 'rgba(243,241,234,.4)'; ctx.setLineDash([7, 7]); ctx.lineWidth = 1.4;
@@ -314,16 +321,14 @@ function render() {
         const t = new Date(day.getTime() + pt.min * 60000);
         ctx.fillStyle = 'rgba(243,241,234,.85)';
         ctx.beginPath(); ctx.arc(p.x, p.y, 2.2, 0, 7); ctx.fill();
-        if (pt.min % 60 === 0) label(fmtT(t), p.x + 7, p.y - 7, 'rgba(255,205,138,.95)', 11);
+        const farFromSun = !ps || Math.hypot(p.x - ps.x, p.y - ps.y) > 75;
+        if (pt.min % 60 === 0 && farFromSun) label(fmtT(t), p.x + 7, p.y - 7, 'rgba(255,205,138,.95)', 11);
       }
       prev = { min: pt.min, p };
     }
   }
 
   // sole e luna
-  const ph = phaseAt(state.date, pos.lat, pos.lng);
-  const ps = project(ph.s.az, ph.s.alt, cam, w, h);
-  const pm = project(ph.m.az, ph.m.alt, cam, w, h);
   const rs = Math.max(5, f * Math.tan(ph.rs * D2R));
 
   if (ps) {
