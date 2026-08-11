@@ -94,10 +94,11 @@
     height: min(62vh, 460px);
     background: var(--night); backdrop-filter: blur(14px);
     border-top: 1px solid var(--edge); border-radius: 16px 16px 0 0;
-    transform: translateY(101%); transition: transform .26s cubic-bezier(.4,0,.2,1);
+    transform: translateY(101%); visibility: hidden;
+    transition: transform .26s cubic-bezier(.4,0,.2,1), visibility 0s linear .26s;
     display: flex; flex-direction: column; padding-bottom: var(--safe-b);
   }
-  #sheet.open { transform: translateY(0); }
+  #sheet.open { transform: translateY(0); visibility: visible; transition-delay: 0s; }
   #sheet .hd { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--edge); }
   #sheet .hd h2 { margin: 0; font-size: 14px; font-weight: 700; }
   #sheet .hd p { margin: 0; font-size: 11.5px; color: var(--dim); }
