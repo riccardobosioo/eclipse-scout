@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eclipse Scout — Street View live</title>
+<style>
+  :root {
+    --bg: #12141c; --panel: rgba(18, 20, 28, 0.92); --ink: #eef1f7; --ink-soft: #9aa3b5;
+    --line: rgba(255, 255, 255, 0.15); --accent: #ffb020; --tot: #ff5f5f;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); font: 13px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); }
+  #pano { position: fixed; inset: 0; }
+  #overlay { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+  #map { position: fixed; left: 12px; bottom: 12px; width: min(300px, 40vw); height: 200px; z-index: 6; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 6px 24px rgba(0,0,0,.4); }
+
+  #panel { position: fixed; top: 12px; right: 12px; z-index: 7; width: 260px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.4); backdrop-filter: blur(6px); }
+  #panel .hd { display: flex; align-items: center; gap: 6px; padding: 8px 10px; font-weight: 700; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,.1); }
+  #panel .hd a { color: var(--ink-soft); font-weight: 400; font-size: 11px; text-decoration: none; flex: 1; text-align: right; }
+  #panel .hd a:hover { color: var(--ink); }
+  #panel .bd { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  #panel input[type=datetime-local] { width: 100%; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); border-radius: 6px; color: var(--ink); padding: 4px 6px; font: inherit; color-scheme: dark; }
+  #panel input[type=range] { width: 100%; accent-color: var(--accent); }
+  .presets { display: flex; gap: 4px; }
+  .presets button { flex: 1; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); border-radius: 6px; color: var(--ink); font-size: 10px; padding: 4px 2px; cursor: pointer; }
+  .presets button:hover { background: rgba(255,255,255,.2); }
+  .presets .tot { background: rgba(220,60,60,.35); border-color: rgba(255,90,90,.5); font-weight: 700; }
+  .presets .pmax { background: rgba(255,150,40,.3); border-color: rgba(255,170,70,.5); font-weight: 700; }
+  .presets .play { flex: 0 0 30px; }
+  #readout { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 11px; background: rgba(255,255,255,.06); border-radius: 6px; padding: 6px 8px; }
+  .red { color: var(--tot); } .orange { color: #ffa94d; }
+  .toggles { display: flex; gap: 12px; color: #c3cad8; }
+  .toggles input { accent-color: var(--accent); }
+  .note { color: #8891a3; font-size: 10px; }
+  @media (max-width: 640px) {
+    #panel { width: calc(100vw - 24px); top: auto; bottom: 224px; right: 12px; }
+    #map { width: calc(100vw - 24px); }
+  }
+</style>
+</head>
+<body>
+<div id="pano" aria-label="Street View"></div>
+<canvas id="overlay"></canvas>
+<div id="map" aria-label="Mappa"></div>
+
+<div id="panel">
+  <div class="hd">🌘 Eclipse Scout <a href="index.html">progetto ↗</a></div>
+  <div class="bd">
+    <input type="datetime-local" id="dt" step="60">
+    <input type="range" id="slider" min="0" max="1439" step="1">
+    <div class="presets" id="presets"></div>
+    <div id="readout"></div>
+    <div class="toggles">
+      <label><input type="checkbox" id="tpath" checked> traiettoria sole</label>
+      <label><input type="checkbox" id="tmoon" checked> luna</label>
+    </div>
+    <div class="note" id="einfo"></div>
+    <div class="note">Trascina l'omino della mappa dove vuoi. Il disco segue la vista in tempo reale.</div>
+  </div>
+</div>
+
+<script data-goatcounter="https://riccardobosio.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+<script src="astronomy.browser.min.js"></script>
+<script>
+'use strict';
+const D2R = Math.PI / 180, R2D = 180 / Math.PI, AU_KM = 1.496e8;
+
+const state = {
+  date: new Date(2026, 7, 12, 20, 29, 40),
+  showSunPath: true, showMoon: true, playing: false,
+  eclipse: null, eclipseKey: '', pathCache: { key: '', pts: [] },
+};
+
+// ---------- Astronomia (identica all'estensione) ----------
+const observer = (lat, lng) => new Astronomy.Observer(lat, lng, 200);
+function bodyPos(body, date, lat, lng) {
+  const obs = observer(lat, lng);
+  const eq = Astronomy.Equator(body, date, obs, true, true);
+  const hor = Astronomy.Horizon(date, obs, eq.ra, eq.dec, 'normal');
+  return { az: hor.azimuth, alt: hor.altitude, distAU: eq.dist };
+}
+const sunPos = (d, la, lo) => bodyPos(Astronomy.Body.Sun, d, la, lo);
+const moonPos = (d, la, lo) => bodyPos(Astronomy.Body.Moon, d, la, lo);
+function angularSep(a, b) {
+  const a1 = a.alt * D2R, a2 = b.alt * D2R, dAz = (a.az - b.az) * D2R;
+  return Math.acos(Math.min(1, Math.max(-1, Math.sin(a1) * Math.sin(a2) + Math.cos(a1) * Math.cos(a2) * Math.cos(dAz)))) * R2D;
+}
+const sunR = (p) => R2D * Math.asin(695700 / (p.distAU * AU_KM));
+const moonR = (p) => R2D * Math.asin(1737.4 / (p.distAU * AU_KM));
+function obscFrac(sep, rs, rm) {
+  if (sep >= rs + rm) return 0;
+  if (sep <= Math.abs(rm - rs)) return rm >= rs ? 1 : (rm * rm) / (rs * rs);
+  const x = (sep * sep + rs * rs - rm * rm) / (2 * sep);
+  const y = Math.sqrt(Math.max(0, rs * rs - x * x));
+  const A1 = rs * rs * Math.acos(Math.min(1, Math.max(-1, x / rs))) - x * y;
+  const xb = sep - x;
+  const A2 = rm * rm * Math.acos(Math.min(1, Math.max(-1, xb / rm))) - xb * y;
+  return (A1 + A2) / (Math.PI * rs * rs);
+}
+function phaseAt(date, lat, lng) {
+  const s = sunPos(date, lat, lng), m = moonPos(date, lat, lng);
+  const sep = angularSep(s, m), rs = sunR(s), rm = moonR(m);
+  const frac = obscFrac(sep, rs, rm);
+  return { s, m, sep, rs, rm, frac, phase: frac >= 1 ? 'totality' : frac > 0 ? 'partial' : 'none' };
+}
+
+// ---------- Street View + proiezione ----------
+let map, pano;
+const canvas = document.getElementById('overlay');
+const ctx = canvas.getContext('2d');
+
+function getPos() {
+  const p = pano && pano.getPosition();
+  return p ? { lat: p.lat(), lng: p.lng() } : null;
+}
+function getCam() {
+  const pov = pano.getPov();
+  const zoom = pano.getZoom();
+  // Maps JS API: fov orizzontale = 180/2^zoom (verificare col ⌥+trascina se serve ritocco)
+  const hfov = 180 / Math.pow(2, zoom == null ? 1 : zoom);
+  return { heading: pov.heading, pitch: pov.pitch, hfov };
+}
+function focal(cam, w) { return (w / 2) / Math.tan((cam.hfov / 2) * D2R); }
+function project(azDeg, altDeg, cam, w, h) {
+  const az = azDeg * D2R, alt = altDeg * D2R;
+  const v = [Math.cos(alt) * Math.sin(az), Math.cos(alt) * Math.cos(az), Math.sin(alt)];
+  const hd = cam.heading * D2R, pt = cam.pitch * D2R;
+  const fwd = [Math.sin(hd) * Math.cos(pt), Math.cos(hd) * Math.cos(pt), Math.sin(pt)];
+  const right = [Math.cos(hd), -Math.sin(hd), 0];
+  const up = [-Math.sin(hd) * Math.sin(pt), -Math.cos(hd) * Math.sin(pt), Math.cos(pt)];
+  const d = v[0] * fwd[0] + v[1] * fwd[1] + v[2] * fwd[2];
+  if (d <= 0.05) return null;
+  const x = (v[0] * right[0] + v[1] * right[1] + v[2] * right[2]) / d;
+  const y = (v[0] * up[0] + v[1] * up[1] + v[2] * up[2]) / d;
+  const f = focal(cam, w);
+  return { x: w / 2 + x * f, y: h / 2 - y * f };
+}
+
+// ---------- Disegno ----------
+function drawSun(x, y, phase, rPx) {
+  const glow = ctx.createRadialGradient(x, y, 2, x, y, 30);
+  const col = phase === 'totality' ? '255,60,60' : phase === 'partial' ? '255,150,40' : '255,200,40';
+  glow.addColorStop(0, `rgba(${col},0.85)`); glow.addColorStop(1, `rgba(${col},0)`);
+  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(x, y, 30, 0, 7); ctx.fill();
+  ctx.fillStyle = phase === 'totality' ? '#111' : `rgb(${col})`;
+  ctx.beginPath(); ctx.arc(x, y, Math.max(4, rPx), 0, 7); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+}
+function drawMoon(x, y, rPx) {
+  ctx.fillStyle = 'rgba(40,45,60,0.75)';
+  ctx.beginPath(); ctx.arc(x, y, Math.max(4, rPx), 0, 7); ctx.fill();
+  ctx.strokeStyle = 'rgba(200,205,220,0.9)'; ctx.lineWidth = 1.5; ctx.stroke();
+}
+function label(text, x, y, color) {
+  ctx.font = 'bold 12px -apple-system, sans-serif';
+  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.strokeText(text, x, y);
+  ctx.fillStyle = color || '#fff'; ctx.fillText(text, x, y);
+}
+const fmtTime = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+
+function getDayPath(lat, lng) {
+  const day = new Date(state.date); day.setHours(0, 0, 0, 0);
+  const key = day.toDateString() + '|' + lat.toFixed(3) + ',' + lng.toFixed(3);
+  if (state.pathCache.key === key) return state.pathCache.pts;
+  const pts = [];
+  for (let min = 0; min < 1440; min += 5) {
+    const t = new Date(day.getTime() + min * 60000);
+    const s = sunPos(t, lat, lng);
+    if (s.alt < -6) continue;
+    let phase = 'none';
+    if (state.eclipse && Math.abs(t - state.eclipse.peak.time.date) < 2.5 * 3600000) {
+      const m = moonPos(t, lat, lng);
+      const frac = obscFrac(angularSep(s, m), sunR(s), moonR(m));
+      phase = frac >= 1 ? 'totality' : frac > 0 ? 'partial' : 'none';
+    }
+    pts.push({ min, az: s.az, alt: s.alt, phase });
+  }
+  state.pathCache = { key, pts };
+  return pts;
+}
+
+function render() {
+  const w = window.innerWidth, h = window.innerHeight;
+  if (canvas.width !== w * devicePixelRatio) {
+    canvas.width = w * devicePixelRatio; canvas.height = h * devicePixelRatio;
+    canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  }
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const pos = getPos();
+  if (!pos || !pano.getVisible()) return;
+  updateLocalEclipse(pos.lat, pos.lng);
+  const cam = getCam();
+  const f = focal(cam, w);
+
+  // orizzonte astronomico
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.setLineDash([6, 6]); ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  let started = false;
+  for (let az = 0; az <= 360; az += 2) {
+    const p = project(az, 0, cam, w, h);
+    if (p) { started ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); started = true; }
+    else started = false;
+  }
+  ctx.stroke(); ctx.restore();
+
+  // traiettoria
+  if (state.showSunPath) {
+    const day = new Date(state.date); day.setHours(0, 0, 0, 0);
+    const pts = getDayPath(pos.lat, pos.lng);
+    let prev = null;
+    for (const pt of pts) {
+      const p = project(pt.az, pt.alt, cam, w, h);
+      if (p && prev && prev.p && pt.min - prev.min === 5) {
+        ctx.strokeStyle = pt.phase === 'totality' ? 'rgba(255,60,60,0.95)'
+          : pt.phase === 'partial' ? 'rgba(255,150,40,0.9)'
+          : pt.alt < 0 ? 'rgba(255,200,40,0.25)' : 'rgba(255,200,40,0.7)';
+        ctx.lineWidth = pt.phase === 'none' ? 2 : 4;
+        ctx.setLineDash(pt.alt < 0 ? [4, 4] : []);
+        ctx.beginPath(); ctx.moveTo(prev.p.x, prev.p.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      if (p && pt.min % 60 === 0) {
+        const t = new Date(day.getTime() + pt.min * 60000);
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.beginPath(); ctx.arc(p.x, p.y, 2.5, 0, 7); ctx.fill();
+        label(fmtTime(t), p.x + 6, p.y - 6, 'rgba(255,230,150,0.95)');
+      }
+      prev = { min: pt.min, p };
+    }
+  }
+
+  // sole + luna
+  const ph = phaseAt(state.date, pos.lat, pos.lng);
+  const ps = project(ph.s.az, ph.s.alt, cam, w, h);
+  const pm = project(ph.m.az, ph.m.alt, cam, w, h);
+  if (ps) {
+    drawSun(ps.x, ps.y, ph.phase, f * Math.tan(ph.rs * D2R));
+    label('Sole ' + fmtTime(state.date) + '  az ' + ph.s.az.toFixed(0) + '° / alt ' + ph.s.alt.toFixed(1) + '°', ps.x + 18, ps.y - 12);
+    if (ph.s.alt < 0) label("(sotto l'orizzonte)", ps.x + 18, ps.y + 2, '#faa');
+  }
+  if (state.showMoon && pm) {
+    drawMoon(pm.x, pm.y, f * Math.tan(ph.rm * D2R));
+    if (ph.sep > ph.rs + ph.rm) label('Luna ' + ph.m.alt.toFixed(1) + '°', pm.x + 14, pm.y + 4, '#cdd3e0');
+  }
+  if (!ps && ph.s.alt > -10) {
+    const dAz = ((ph.s.az - cam.heading + 540) % 360) - 180;
+    const txt = dAz > 0 ? 'Sole a destra →  (' + Math.abs(dAz).toFixed(0) + '°)' : '← Sole a sinistra  (' + Math.abs(dAz).toFixed(0) + '°)';
+    ctx.font = 'bold 15px -apple-system, sans-serif';
+    const tw = ctx.measureText(txt).width;
+    label(txt, dAz > 0 ? w - tw - 24 : 24, h / 2, '#ffd54a');
+  }
+  updateReadout(ph);
+}
+
+// ---------- Eclissi locale + pannello ----------
+const $ = (s) => document.querySelector(s);
+const dtInput = $('#dt'), slider = $('#slider'), readout = $('#readout');
+
+function updateLocalEclipse(lat, lng) {
+  const key = lat.toFixed(2) + ',' + lng.toFixed(2);
+  if (key === state.eclipseKey) return;
+  state.eclipseKey = key;
+  try {
+    state.eclipse = Astronomy.SearchLocalSolarEclipse(new Date(state.date.getTime() - 3 * 86400000), observer(lat, lng));
+  } catch (e) { state.eclipse = null; }
+  updatePresets();
+}
+function toLocalInput(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+function syncInputs() { dtInput.value = toLocalInput(state.date); slider.value = state.date.getHours() * 60 + state.date.getMinutes(); }
+function setDate(d) { state.date = d; syncInputs(); render(); }
+
+dtInput.addEventListener('input', () => { if (dtInput.value) setDate(new Date(dtInput.value)); });
+slider.addEventListener('input', () => {
+  const d = new Date(state.date);
+  d.setHours(Math.floor(slider.value / 60), slider.value % 60, 0, 0);
+  state.date = d; dtInput.value = toLocalInput(d); render();
+});
+
+function updatePresets() {
+  const box = $('#presets');
+  box.innerHTML = '';
+  const e = state.eclipse;
+  const mk = (txt, cls, date, secs) => {
+    const b = document.createElement('button');
+    b.textContent = txt; if (cls) b.className = cls;
+    b.addEventListener('click', () => { const d = new Date(date); if (!secs) d.setSeconds(0, 0); setDate(d); });
+    box.appendChild(b);
+  };
+  if (e) {
+    mk('Parziale ' + fmtTime(e.partial_begin.time.date), '', e.partial_begin.time.date);
+    if (e.kind === 'total' && e.total_begin) mk('TOTALITÀ ' + fmtTime(e.total_begin.time.date), 'tot', e.total_begin.time.date, true);
+    else mk('MAX ' + fmtTime(e.peak.time.date) + ' (' + Math.round(e.obscuration * 100) + '%)', 'pmax', e.peak.time.date, true);
+    mk('Fine ' + fmtTime(e.partial_end.time.date), '', e.partial_end.time.date);
+  }
+  const play = document.createElement('button');
+  play.className = 'play'; play.textContent = state.playing ? '⏸' : '▶';
+  play.addEventListener('click', togglePlay);
+  box.appendChild(play);
+
+  const info = $('#einfo');
+  if (e) {
+    info.innerHTML = e.kind === 'total'
+      ? '✅ Questo punto è nella <b>fascia di totalità</b> (' + fmtTime(e.total_begin.time.date) + '–' + fmtTime(e.total_end.time.date) + ', max ' + fmtTime(e.peak.time.date) + ')'
+      : '⚠️ Qui l\'eclissi è solo <b>parziale</b> (max ' + Math.round(e.obscuration * 100) + '% alle ' + fmtTime(e.peak.time.date) + '). Spostati nella fascia di totalità';
+  } else info.textContent = '';
+}
+let playTimer = null;
+function togglePlay() {
+  state.playing = !state.playing;
+  const btn = document.querySelector('#presets .play'); if (btn) btn.textContent = state.playing ? '⏸' : '▶';
+  if (state.playing) playTimer = setInterval(() => { state.date = new Date(state.date.getTime() + 60000); syncInputs(); render(); }, 120);
+  else clearInterval(playTimer);
+}
+$('#tpath').addEventListener('change', (e) => { state.showSunPath = e.target.checked; render(); });
+$('#tmoon').addEventListener('change', (e) => { state.showMoon = e.target.checked; render(); });
+
+function updateReadout(ph) {
+  const cover = Math.round(ph.frac * 100);
+  const phaseTxt = ph.phase === 'totality' ? '<b class="red">● TOTALITÀ</b>'
+    : ph.phase === 'partial' ? '<b class="orange">◐ parziale ' + cover + '%</b>' : '';
+  readout.innerHTML =
+    '☀️ az ' + ph.s.az.toFixed(1) + '° · alt ' + ph.s.alt.toFixed(1) + '°' +
+    (ph.s.alt < 0 ? ' <span class="red">(sotto orizzonte)</span>' : '') + '<br>' +
+    '🌙 az ' + ph.m.az.toFixed(1) + '° · alt ' + ph.m.alt.toFixed(1) + '°<br>' +
+    'sep ' + ph.sep.toFixed(3) + '° · copertura sole ' + cover + '% ' + phaseTxt;
+}
+
+// ---------- Init Maps ----------
+function initApp() {
+  const start = { lat: 41.65704, lng: -0.87759 }; // Puente de Piedra, Zaragoza
+  pano = new google.maps.StreetViewPanorama(document.getElementById('pano'), {
+    position: start,
+    pov: { heading: 285, pitch: 5 },
+    zoom: 1,
+    motionTracking: false,
+    fullscreenControl: false,
+  });
+  map = new google.maps.Map(document.getElementById('map'), {
+    center: start, zoom: 6,
+    streetViewControl: true, mapTypeControl: false, fullscreenControl: false,
+  });
+  map.setStreetView(pano);
+  pano.addListener('pov_changed', render);
+  pano.addListener('zoom_changed', render);
+  pano.addListener('pano_changed', render);
+  pano.addListener('position_changed', render);
+  pano.addListener('visible_changed', render);
+  window.addEventListener('resize', render);
+  syncInputs();
+  render();
+}
+window.initApp = initApp;
+</script>
+<script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBcnYkcvoYx5I5qQZb1oRaUTy_VmMb2DNU&callback=initApp&v=weekly&language=it"></script>
+</body>
+</html>

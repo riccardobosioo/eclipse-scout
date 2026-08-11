@@ -98,6 +98,7 @@
   }
   .btn:hover { transform: translateY(-1px); }
   .btn:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
+  .btn-secondary { background: transparent; color: var(--ink); border: 1.5px solid var(--line); font-weight: 600; }
   .cta-meta { font: 500 12px/1.5 "SF Mono", ui-monospace, Menlo, monospace; color: var(--ink-soft); }
 
   h2 {
@@ -179,8 +180,12 @@
   <div class="sim-frame"><canvas id="sim" aria-label="Simulazione: traiettoria del sole al tramonto con eclissi sopra una fila di palazzi"></canvas></div>
 
   <div class="cta-row">
-    <a class="btn" id="dl" href="eclipse-scout.zip" download="eclipse-scout.zip">Scarica per Chrome</a>
-    <span class="cta-meta">gratis · 59 KB · 2 minuti · nessun account</span>
+    <a class="btn" href="app.html">🌐 Provalo subito nel browser</a>
+    <span class="cta-meta">niente da installare · funziona anche da telefono</span>
+  </div>
+  <div class="cta-row">
+    <a class="btn btn-secondary" id="dl" href="eclipse-scout.zip" download="eclipse-scout.zip">Scarica l'estensione Chrome</a>
+    <span class="cta-meta">per usarla dentro Google Maps · gratis · 59 KB</span>
   </div>
 
   <h2>Il problema, in tre numeri</h2>
