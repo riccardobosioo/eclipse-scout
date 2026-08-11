@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Eclipse Scout — test harness</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { margin: 0; height: 100vh; overflow: hidden; font-family: sans-serif; }
+  /* sidebar finta come quella di Google Maps */
+  #sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 400px; background: #fff; border-right: 1px solid #ccc; z-index: 5; padding: 12px; box-sizing: border-box; }
+  /* riquadro panorama: SOLO la parte destra, come su Maps con sidebar aperta */
+  canvas.widget-scene-canvas { position: fixed; left: 400px; top: 0; width: calc(100vw - 400px); height: 100vh; background: linear-gradient(#87b5e5 0%, #b8d4ee 55%, #7a9b6d 55.5%, #5d7a52 100%); }
+  .fake-building { position: fixed; bottom: 45%; width: 120px; height: 260px; background: #8a8378; z-index: 1; }
+  #info { position: fixed; bottom: 8px; left: 420px; background: rgba(0,0,0,.6); color: #fff; padding: 6px 10px; border-radius: 8px; font-size: 12px; z-index: 6; }
+  #toggle-sb { position: fixed; bottom: 8px; left: 8px; z-index: 7; }
+</style>
+</head>
+<body>
+<div id="sidebar">Sidebar finta (400px) — il panorama parte da qui →<br><button id="toggle-sb">apri/chiudi sidebar</button></div>
+<canvas class="widget-scene-canvas"></canvas>
+<div class="fake-building" style="left: 55%"></div>
+<div class="fake-building" style="left: 75%; height: 180px; width: 90px"></div>
+<div id="info">Harness: URL finto Street View — heading 285°, pitch 0°, fov 75° — overlay atteso centrato sul riquadro destro</div>
+<!-- bussola finta come quella di Street View: il needle ruota di -heading -->
+<div id="fake-compass" aria-label="Compass" style="position:fixed;right:24px;bottom:140px;width:44px;height:44px;border-radius:50%;background:#222;z-index:4;display:flex;align-items:center;justify-content:center">
+  <div id="needle" style="width:4px;height:36px;background:linear-gradient(#e33 50%,#eee 50%);transform:rotate(-285deg)"></div>
+</div>
+<script src="astronomy.browser.min.js"></script>
+<script src="content.js"></script>
+<script>
+  // simula l'URL di Google Maps Street View: il content script lo aggancia col polling
+  history.replaceState(null, '', location.pathname.replace(/[^/]*$/, '') + '@41.6584,-0.8788,3a,75y,285h,90t');
+  // toggle sidebar per testare il ricalcolo del riquadro
+  document.getElementById('toggle-sb').addEventListener('click', () => {
+    const sb = document.getElementById('sidebar');
+    const open = sb.style.width !== '0px';
+    sb.style.width = open ? '0px' : '400px';
+    sb.style.padding = open ? '0' : '12px';
+    document.querySelector('canvas.widget-scene-canvas').style.left = open ? '0px' : '400px';
+    document.querySelector('canvas.widget-scene-canvas').style.width = open ? '100vw' : 'calc(100vw - 400px)';
+  });
+</script>
+</body>
+</html>

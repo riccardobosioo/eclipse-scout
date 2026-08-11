@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8">
+<title>Eclipse Scout</title>
+<style>
+  :root {
+    --sky-deep: #f0e9dc;
+    --sky-mid: #f7f1e6;
+    --card: #fbf7ee;
+    --ink: #24263a;
+    --ink-soft: #5b5e75;
+    --line: #d8d0bf;
+    --accent: #e07b2a;
+    --accent-soft: #f0a35e;
+    --totality: #d94f4f;
+    --btn-ink: #fff;
+    --sky-canvas-top: #c7d5ea;
+    --sky-canvas-low: #f4d9b8;
+    --silhouette: #3a3d52;
+    --horizon-dash: #6b6e88;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --sky-deep: #0c1120;
+      --sky-mid: #121a2e;
+      --card: #171f36;
+      --ink: #edeaf3;
+      --ink-soft: #a3a7c2;
+      --line: #2b3352;
+      --accent: #ff9a3d;
+      --accent-soft: #b06a2e;
+      --totality: #ff5f5f;
+      --btn-ink: #1a1206;
+      --sky-canvas-top: #0e1526;
+      --sky-canvas-low: #3b2f3a;
+      --silhouette: #05070f;
+      --horizon-dash: #8d92b3;
+    }
+  }
+  :root[data-theme="light"] {
+    --sky-deep: #f0e9dc; --sky-mid: #f7f1e6; --card: #fbf7ee; --ink: #24263a;
+    --ink-soft: #5b5e75; --line: #d8d0bf; --accent: #e07b2a; --accent-soft: #f0a35e;
+    --totality: #d94f4f; --btn-ink: #fff; --sky-canvas-top: #c7d5ea; --sky-canvas-low: #f4d9b8;
+    --silhouette: #3a3d52; --horizon-dash: #6b6e88;
+  }
+  :root[data-theme="dark"] {
+    --sky-deep: #0c1120; --sky-mid: #121a2e; --card: #171f36; --ink: #edeaf3;
+    --ink-soft: #a3a7c2; --line: #2b3352; --accent: #ff9a3d; --accent-soft: #b06a2e;
+    --totality: #ff5f5f; --btn-ink: #1a1206; --sky-canvas-top: #0e1526; --sky-canvas-low: #3b2f3a;
+    --silhouette: #05070f; --horizon-dash: #8d92b3;
+  }
+
+  body {
+    background: linear-gradient(var(--sky-deep), var(--sky-mid) 480px, var(--sky-deep));
+    color: var(--ink);
+    font: 16px/1.65 -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 680px; margin: 0 auto; padding: 0 20px 72px; }
+
+  .eyebrow {
+    font: 600 11px/1 "SF Mono", ui-monospace, Menlo, monospace;
+    letter-spacing: .18em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin: 48px 0 14px;
+  }
+  h1 {
+    font: 700 clamp(40px, 8vw, 58px)/1.04 "New York", "Iowan Old Style", Palatino, Georgia, serif;
+    letter-spacing: -.015em;
+    margin: 0 0 14px;
+    text-wrap: balance;
+  }
+  .lede { font-size: 19px; color: var(--ink-soft); max-width: 34em; text-wrap: pretty; margin: 0 0 26px; }
+  .lede b { color: var(--ink); font-weight: 600; }
+
+  .sim-frame {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--sky-canvas-top);
+    margin: 8px 0 26px;
+  }
+  .sim-frame canvas { display: block; width: 100%; height: 300px; }
+
+  .cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin: 0 0 10px; }
+  .btn {
+    display: inline-block;
+    background: var(--accent);
+    color: var(--btn-ink);
+    font-weight: 700;
+    font-size: 17px;
+    padding: 14px 26px;
+    border-radius: 10px;
+    text-decoration: none;
+    transition: transform .12s ease;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
+  .cta-meta { font: 500 12px/1.5 "SF Mono", ui-monospace, Menlo, monospace; color: var(--ink-soft); }
+
+  h2 {
+    font: 700 24px/1.2 "New York", "Iowan Old Style", Palatino, Georgia, serif;
+    margin: 52px 0 16px;
+    text-wrap: balance;
+  }
+  p { margin: 0 0 14px; }
+  .muted { color: var(--ink-soft); }
+
+  .facts { display: grid; gap: 12px; margin: 20px 0 0; padding: 0; list-style: none; }
+  .facts li {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    gap: 12px;
+    align-items: baseline;
+  }
+  .facts .k {
+    font: 700 13px/1.4 "SF Mono", ui-monospace, Menlo, monospace;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+
+  ol.steps { margin: 18px 0 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 10px; }
+  ol.steps li {
+    counter-increment: step;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 13px 16px 13px 54px;
+    position: relative;
+  }
+  ol.steps li::before {
+    content: counter(step);
+    position: absolute; left: 16px; top: 12px;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--btn-ink);
+    font: 700 14px/26px "SF Mono", ui-monospace, Menlo, monospace;
+    text-align: center;
+  }
+  code {
+    font: 500 .92em "SF Mono", ui-monospace, Menlo, monospace;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-radius: 5px;
+    padding: 1px 6px;
+  }
+  .tot { color: var(--totality); font-weight: 700; }
+
+  .note {
+    border-left: 3px solid var(--accent);
+    padding: 4px 0 4px 16px;
+    color: var(--ink-soft);
+    margin: 22px 0 0;
+    font-size: 14.5px;
+  }
+  footer {
+    margin-top: 60px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+  @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
+</style>
+<!-- GOATCOUNTER: lo snippet del contatore va qui (in attesa del codice) -->
+</head>
+<body>
+
+<div class="wrap">
+  <div class="eyebrow">Eclissi totale di sole · 12 agosto 2026 · Spagna</div>
+  <h1>Eclipse Scout 🌘</h1>
+  <p class="lede">L'estensione Chrome che disegna <b>sole, luna e traiettoria</b> sopra Google Street View. Scegli il punto di osservazione da casa e scopri subito se un palazzo o un albero ti copre l'eclissi.</p>
+
+  <div class="sim-frame"><canvas id="sim" aria-label="Simulazione: traiettoria del sole al tramonto con eclissi sopra una fila di palazzi"></canvas></div>
+
+  <div class="cta-row">
+    <a class="btn" id="dl" href="eclipse-scout.zip" download="eclipse-scout.zip">Scarica per Chrome</a>
+    <span class="cta-meta">gratis · 59 KB · 2 minuti · nessun account</span>
+  </div>
+
+  <h2>Il problema, in tre numeri</h2>
+  <ul class="facts">
+    <li><span class="k">20:29</span><span>A quell'ora, il 12 agosto 2026, la luna copre completamente il sole sul nord della Spagna. Fuori dalla fascia (Italia inclusa) l'eclissi resta parziale.</span></li>
+    <li><span class="k">~6°</span><span>L'altezza del sole sull'orizzonte durante la totalità. Bassissimo: è quasi il tramonto.</span></li>
+    <li><span class="k">95 m</span><span>A 6 gradi, un ostacolo alto 10 metri ti nasconde il sole già da questa distanza. Per questo il punto va scelto bene.</span></li>
+  </ul>
+
+  <h2>Cosa fa</h2>
+  <ul class="facts">
+    <li><span class="k">overlay</span><span>Disco del sole e della luna in scala reale sul panorama, traiettoria del giorno con i tick orari e linea dell'orizzonte.</span></li>
+    <li><span class="k">orari</span><span>Fasi calcolate per il punto esatto che stai guardando, con avviso se sei dentro o fuori dalla <span class="tot">fascia di totalità</span> e percentuale di copertura.</span></li>
+    <li><span class="k">tempo</span><span>Slider sulla giornata, preset Parziale / Totalità / Fine e play per animare il movimento.</span></li>
+    <li><span class="k">privacy</span><span>Gira solo su Google Maps, non raccoglie dati e non contatta nessun server.</span></li>
+  </ul>
+
+  <h2>Installazione</h2>
+  <ol class="steps">
+    <li>Scarica lo zip qui sopra e scompattalo con un doppio clic.</li>
+    <li>Apri <code>chrome://extensions</code> e attiva <b>Modalità sviluppatore</b> (interruttore in alto a destra).</li>
+    <li>Clicca <b>Carica estensione non pacchettizzata</b> e scegli la cartella <code>eclipse-scout</code>.</li>
+    <li>Apri Google Maps ed entra in Street View: il pannello compare in alto a destra.</li>
+  </ol>
+
+  <h2>Come si usa</h2>
+  <ol class="steps">
+    <li>Trascina l'omino giallo nel punto che vuoi valutare.</li>
+    <li>Premi il preset <span class="tot">TOTALITÀ</span> nel pannello.</li>
+    <li>Guarda dove cade il disco: se davanti c'è un ostacolo, cambia punto. Se è libero, segnatelo.</li>
+  </ol>
+  <p class="note">L'overlay segue la rotazione in tempo reale. Se non ti sembra allineato al panorama, tieni premuto Alt (⌥ su Mac) e trascina per correggerlo; Alt e doppio clic per azzerare. Precisione indicativa di 1 o 2 gradi: per la decisione finale verifica sul posto.</p>
+
+  <footer>
+    Fatto da Riccardo con Claude · Astronomia: astronomy-engine (posizioni topocentriche, precisione al primo d'arco) · Orari nel fuso di Roma/Madrid · Buona eclissi ☀️
+  </footer>
+</div>
+
+<script>
+(function () {
+  const canvas = document.getElementById('sim');
+  const ctx = canvas.getContext('2d');
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const t0 = performance.now();
+  const animNow = () => reduced ? 1 : Math.min(1, (performance.now() - t0) / 1500);
+  let anim = animNow();
+
+  function tok(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  function draw() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    canvas.width = w * devicePixelRatio; canvas.height = h * devicePixelRatio;
+    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+
+    const sky = ctx.createLinearGradient(0, 0, 0, h);
+    sky.addColorStop(0, tok('--sky-canvas-top'));
+    sky.addColorStop(1, tok('--sky-canvas-low'));
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, w, h);
+
+    const hy = h * 0.68; // orizzonte
+    // traiettoria: da alto-sinistra al tramonto oltre l'orizzonte
+    const p = (t) => ({ x: w * (0.08 + 0.78 * t), y: h * 0.06 + (hy + 26 - h * 0.06) * t * t * 0.55 + (hy + 26 - h * 0.06) * t * 0.45 });
+
+    // palazzi
+    ctx.fillStyle = tok('--silhouette');
+    const B = [[0.02,0.16,0.10],[0.16,0.10,0.16],[0.30,0.13,0.09],[0.55,0.09,0.20],[0.66,0.12,0.13],[0.83,0.10,0.24],[0.94,0.08,0.12]];
+    for (const [x, bw, bh] of B) ctx.fillRect(w * x, hy - h * bh, w * bw, h * bh + (h - hy));
+    ctx.fillRect(0, hy, w, h - hy);
+
+    // linea orizzonte tratteggiata
+    ctx.strokeStyle = tok('--horizon-dash');
+    ctx.setLineDash([7, 7]); ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(0, hy); ctx.lineTo(w, hy); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // traiettoria
+    const acc = tok('--accent'), tot = tok('--totality');
+    for (let i = 0; i < 60; i++) {
+      const a = p(i / 60), b = p((i + 1) / 60);
+      const frac = i / 60;
+      ctx.strokeStyle = frac > 0.52 && frac < 0.72 ? tot : acc;
+      ctx.globalAlpha = a.y > hy ? 0.35 : 0.95;
+      ctx.lineWidth = frac > 0.52 && frac < 0.72 ? 3.5 : 2.2;
+      if (a.y > hy) ctx.setLineDash([4, 5]);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
+    // tick orari
+    ctx.fillStyle = tok('--ink');
+    ctx.font = '600 11px ui-monospace, Menlo, monospace';
+    for (const [t, lab] of [[0.10, '19:00'], [0.40, '20:00'], [0.86, '21:00']]) {
+      const q = p(t);
+      if (q.y < hy) { ctx.beginPath(); ctx.arc(q.x, q.y, 2.4, 0, 7); ctx.fill(); ctx.fillText(lab, q.x + 7, q.y - 6); }
+    }
+
+    // sole eclissato (posizione animata fino al punto di totalità t=0.62)
+    const s = p(0.62 * anim);
+    const glow = ctx.createRadialGradient(s.x, s.y, 3, s.x, s.y, 34);
+    glow.addColorStop(0, tot); glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalAlpha = 0.75; ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(s.x, s.y, 34, 0, 7); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#0a0a0f';
+    ctx.beginPath(); ctx.arc(s.x, s.y, 10, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.stroke();
+    ctx.fillStyle = tok('--ink');
+    ctx.font = '700 11px ui-monospace, Menlo, monospace';
+    if (anim >= 1) ctx.fillText('TOTALITÀ 20:29', s.x + 14, s.y - 10);
+  }
+
+  function loop() {
+    anim = animNow();
+    draw();
+    if (anim < 1) requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+  setTimeout(() => { anim = animNow(); draw(); }, 1700); // stato finale garantito anche con rAF throttled
+  addEventListener('resize', () => { anim = animNow(); draw(); });
+  document.addEventListener('visibilitychange', () => { anim = animNow(); draw(); });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', draw);
+  new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+})();
+</script>
+
+</body>
+</html>
