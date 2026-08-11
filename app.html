@@ -2,77 +2,185 @@
 <html lang="it">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Eclipse Scout — Street View live</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Eclipse Scout — mappa</title>
+<script data-goatcounter="https://riccardobosio.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 <style>
   :root {
-    --bg: #12141c; --panel: rgba(18, 20, 28, 0.92); --ink: #eef1f7; --ink-soft: #9aa3b5;
-    --line: rgba(255, 255, 255, 0.15); --accent: #ffb020; --tot: #ff5f5f;
+    --void: #06070c; --night: rgba(14,17,25,.94); --raise: #1a2030; --edge: rgba(255,255,255,.14);
+    --corona: #f3f1ea; --dim: #939ab0; --amber: #ffa227; --amber-ink: #150d02; --totality: #ff5252;
+    --mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, sans-serif;
+    --safe-b: env(safe-area-inset-bottom, 0px);
   }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--bg); font: 13px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--ink); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--void); color: var(--corona); font: 15px/1.45 var(--sans); overscroll-behavior: none; }
   #pano { position: fixed; inset: 0; }
-  #overlay { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
-  #map { position: fixed; left: 12px; bottom: 12px; width: min(300px, 40vw); height: 200px; z-index: 6; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 6px 24px rgba(0,0,0,.4); }
+  #overlay { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
 
-  #panel { position: fixed; top: 12px; right: 12px; z-index: 7; width: 260px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.4); backdrop-filter: blur(6px); }
-  #panel .hd { display: flex; align-items: center; gap: 6px; padding: 8px 10px; font-weight: 700; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,.1); }
-  #panel .hd a { color: var(--ink-soft); font-weight: 400; font-size: 11px; text-decoration: none; flex: 1; text-align: right; }
-  #panel .hd a:hover { color: var(--ink); }
-  #panel .bd { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
-  #panel input[type=datetime-local] { width: 100%; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.18); border-radius: 6px; color: var(--ink); padding: 4px 6px; font: inherit; color-scheme: dark; }
-  #panel input[type=range] { width: 100%; accent-color: var(--accent); }
-  .presets { display: flex; gap: 4px; }
-  .presets button { flex: 1; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.18); border-radius: 6px; color: var(--ink); font-size: 10px; padding: 4px 2px; cursor: pointer; }
-  .presets button:hover { background: rgba(255,255,255,.2); }
-  .presets .tot { background: rgba(220,60,60,.35); border-color: rgba(255,90,90,.5); font-weight: 700; }
-  .presets .pmax { background: rgba(255,150,40,.3); border-color: rgba(255,170,70,.5); font-weight: 700; }
-  .presets .play { flex: 0 0 30px; }
-  #readout { font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 11px; background: rgba(255,255,255,.06); border-radius: 6px; padding: 6px 8px; }
-  .red { color: var(--tot); } .orange { color: #ffa94d; }
-  .toggles { display: flex; gap: 12px; color: #c3cad8; }
-  .toggles input { accent-color: var(--accent); }
-  .note { color: #8891a3; font-size: 10px; }
-  @media (max-width: 640px) {
-    #panel { width: calc(100vw - 24px); top: auto; bottom: 224px; right: 12px; }
-    #map { width: calc(100vw - 24px); }
+  /* ---------- Chip di stato (in alto, sottile) ---------- */
+  #status {
+    position: fixed; top: calc(10px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%);
+    z-index: 6; display: flex; align-items: center; gap: 8px;
+    background: var(--night); border: 1px solid var(--edge); border-radius: 999px;
+    padding: 7px 14px; backdrop-filter: blur(10px);
+    font: 600 13px/1 var(--sans); white-space: nowrap;
+    max-width: calc(100vw - 100px); overflow: hidden;
   }
+  #status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--amber); flex: none; }
+  #status.is-total .dot { background: var(--totality); box-shadow: 0 0 10px var(--totality); }
+  #status.is-out .dot { background: var(--dim); }
+  #status b { font-variant-numeric: tabular-nums; }
+
+  /* ---------- Bottoni flottanti ---------- */
+  .fabs { position: fixed; top: calc(8px + env(safe-area-inset-top, 0px)); right: 10px; z-index: 7; display: flex; flex-direction: column; gap: 8px; }
+  .fab {
+    width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--edge);
+    background: var(--night); color: var(--corona); backdrop-filter: blur(10px);
+    font-size: 17px; cursor: pointer; display: grid; place-items: center;
+  }
+  .fab:active { background: var(--raise); }
+  .fab[aria-pressed="true"] { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
+
+  /* ---------- Dock in basso ---------- */
+  #dock {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
+    background: var(--night); backdrop-filter: blur(14px);
+    border-top: 1px solid var(--edge);
+    padding: 12px 14px calc(12px + var(--safe-b));
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .timerow { display: flex; align-items: baseline; gap: 10px; }
+  .clock { font: 700 27px/1 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .clock .date { font-size: 12px; font-weight: 500; color: var(--dim); margin-left: 6px; letter-spacing: 0; }
+  .cover { margin-left: auto; text-align: right; font: 700 13px/1.2 var(--sans); }
+  .cover span { display: block; font: 500 10px/1 var(--mono); letter-spacing: .08em; color: var(--dim); text-transform: uppercase; margin-bottom: 3px; }
+  .cover.is-total { color: var(--totality); }
+
+  input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 30px; background: transparent; margin: 0;
+  }
+  input[type=range]::-webkit-slider-runnable-track { height: 5px; border-radius: 3px; background: linear-gradient(90deg, var(--amber) var(--pct, 50%), rgba(255,255,255,.16) var(--pct, 50%)); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; border-radius: 50%; background: var(--corona); border: 3px solid var(--amber); margin-top: -11px; cursor: grab; }
+  input[type=range]::-moz-range-track { height: 5px; border-radius: 3px; background: rgba(255,255,255,.16); }
+  input[type=range]::-moz-range-progress { height: 5px; border-radius: 3px; background: var(--amber); }
+  input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border-radius: 50%; background: var(--corona); border: 3px solid var(--amber); }
+
+  .presets { display: flex; gap: 6px; }
+  .presets button {
+    flex: 1; min-height: 42px; padding: 6px 4px;
+    background: var(--raise); border: 1px solid var(--edge); border-radius: 10px; color: var(--corona);
+    font: 600 12px/1.25 var(--sans); cursor: pointer;
+  }
+  .presets button:active { background: #232a3b; }
+  .presets button b { display: block; font: 700 13px/1.2 var(--mono); font-variant-numeric: tabular-nums; }
+  .presets .peak { background: rgba(255,82,82,.18); border-color: rgba(255,82,82,.5); color: #ffb3b3; }
+  .presets .peak.partial { background: rgba(255,162,39,.16); border-color: rgba(255,162,39,.5); color: #ffcd8a; }
+  .presets .play { flex: 0 0 46px; font-size: 15px; }
+
+  #details { display: none; border-top: 1px solid var(--edge); padding-top: 10px; }
+  #details.open { display: block; }
+  #readout { font: 500 11.5px/1.6 var(--mono); font-variant-numeric: tabular-nums; color: var(--dim); }
+  #readout b { color: var(--corona); font-weight: 600; }
+  .toggles { display: flex; gap: 16px; margin-top: 8px; font-size: 12.5px; color: var(--dim); }
+  .toggles label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .toggles input { accent-color: var(--amber); width: 15px; height: 15px; }
+  .more { background: none; border: 0; color: var(--dim); font: 600 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; padding: 4px 0 0; align-self: flex-start; }
+
+  /* ---------- Sheet mappa ---------- */
+  #sheet {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 8;
+    height: min(62vh, 460px);
+    background: var(--night); backdrop-filter: blur(14px);
+    border-top: 1px solid var(--edge); border-radius: 16px 16px 0 0;
+    transform: translateY(101%); transition: transform .26s cubic-bezier(.4,0,.2,1);
+    display: flex; flex-direction: column; padding-bottom: var(--safe-b);
+  }
+  #sheet.open { transform: translateY(0); }
+  #sheet .hd { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--edge); }
+  #sheet .hd h2 { margin: 0; font-size: 14px; font-weight: 700; }
+  #sheet .hd p { margin: 0; font-size: 11.5px; color: var(--dim); }
+  #sheet .close { margin-left: auto; background: var(--raise); border: 1px solid var(--edge); color: var(--corona); border-radius: 8px; width: 34px; height: 34px; font-size: 16px; cursor: pointer; }
+  #map { flex: 1; }
+  #scrim { position: fixed; inset: 0; z-index: 7; background: rgba(0,0,0,.5); opacity: 0; pointer-events: none; transition: opacity .26s ease; }
+  #scrim.open { opacity: 1; pointer-events: auto; }
+
+  /* ---------- Hint iniziale ---------- */
+  #hint {
+    position: fixed; z-index: 6; left: 50%; transform: translateX(-50%);
+    bottom: calc(210px + var(--safe-b)); width: max-content; max-width: calc(100vw - 40px);
+    background: var(--amber); color: var(--amber-ink); font: 600 13px/1.35 var(--sans);
+    padding: 10px 14px; border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.45);
+    transition: opacity .3s ease;
+  }
+  #hint.hide { opacity: 0; pointer-events: none; }
+
+  @media (min-width: 720px) {
+    #dock { left: auto; right: 12px; bottom: 12px; width: 340px; border: 1px solid var(--edge); border-radius: 14px; padding: 14px; }
+    #sheet { left: 12px; right: auto; bottom: 12px; width: 380px; height: 400px; border-radius: 14px; border: 1px solid var(--edge); }
+    #hint { bottom: 24px; left: 24px; transform: none; }
+    #status { left: 12px; transform: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { #sheet, #scrim, #hint { transition: none; } }
 </style>
 </head>
 <body>
+
 <div id="pano" aria-label="Street View"></div>
 <canvas id="overlay"></canvas>
-<div id="map" aria-label="Mappa"></div>
 
-<div id="panel">
-  <div class="hd">🌘 Eclipse Scout <a href="index.html">progetto ↗</a></div>
-  <div class="bd">
-    <input type="datetime-local" id="dt" step="60">
-    <input type="range" id="slider" min="0" max="1439" step="1">
-    <div class="presets" id="presets"></div>
+<div id="status"><span class="dot"></span><span id="statusText">caricamento…</span></div>
+
+<div class="fabs">
+  <button class="fab" id="btnMap" aria-pressed="false" title="Scegli il punto sulla mappa">🗺️</button>
+  <button class="fab" id="btnSun" title="Guarda verso il sole">☀️</button>
+</div>
+
+<div id="hint">Tocca 🗺️ per scegliere il punto</div>
+
+<div id="dock">
+  <div class="timerow">
+    <div class="clock"><span id="clock">20:29</span><span class="date">12 ago 2026</span></div>
+    <div class="cover" id="cover"><span>sole coperto</span>—</div>
+  </div>
+  <input type="range" id="slider" min="1140" max="1320" step="1" aria-label="Ora del giorno">
+  <div class="presets" id="presets"></div>
+  <button class="more" id="btnMore">dettagli +</button>
+  <div id="details">
     <div id="readout"></div>
     <div class="toggles">
-      <label><input type="checkbox" id="tpath" checked> traiettoria sole</label>
+      <label><input type="checkbox" id="tpath" checked> traiettoria</label>
       <label><input type="checkbox" id="tmoon" checked> luna</label>
+      <label><input type="checkbox" id="tday"> tutto il giorno</label>
     </div>
-    <div class="note" id="einfo"></div>
-    <div class="note">Trascina l'omino della mappa dove vuoi. Il disco segue la vista in tempo reale.</div>
   </div>
 </div>
 
-<script data-goatcounter="https://riccardobosio.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+<div id="scrim"></div>
+<div id="sheet">
+  <div class="hd">
+    <div>
+      <h2>Scegli il punto</h2>
+      <p>Tocca la mappa: ti porto lì in Street View</p>
+    </div>
+    <button class="close" id="btnClose" aria-label="Chiudi">✕</button>
+  </div>
+  <div id="map"></div>
+</div>
+
 <script src="astronomy.browser.min.js"></script>
 <script>
 'use strict';
 const D2R = Math.PI / 180, R2D = 180 / Math.PI, AU_KM = 1.496e8;
+const $ = (s) => document.querySelector(s);
 
 const state = {
   date: new Date(2026, 7, 12, 20, 29, 40),
-  showSunPath: true, showMoon: true, playing: false,
+  showPath: true, showMoon: true, wholeDay: false, playing: false,
   eclipse: null, eclipseKey: '', pathCache: { key: '', pts: [] },
 };
 
-// ---------- Astronomia (identica all'estensione) ----------
+/* ---------- Astronomia ---------- */
 const observer = (lat, lng) => new Astronomy.Observer(lat, lng, 200);
 function bodyPos(body, date, lat, lng) {
   const obs = observer(lat, lng);
@@ -105,23 +213,16 @@ function phaseAt(date, lat, lng) {
   return { s, m, sep, rs, rm, frac, phase: frac >= 1 ? 'totality' : frac > 0 ? 'partial' : 'none' };
 }
 
-// ---------- Street View + proiezione ----------
-let map, pano;
-const canvas = document.getElementById('overlay');
-const ctx = canvas.getContext('2d');
+/* ---------- Street View ---------- */
+let map, pano, svService, marker;
+const canvas = $('#overlay'), ctx = canvas.getContext('2d');
 
-function getPos() {
-  const p = pano && pano.getPosition();
-  return p ? { lat: p.lat(), lng: p.lng() } : null;
-}
+const getPos = () => { const p = pano && pano.getPosition(); return p ? { lat: p.lat(), lng: p.lng() } : null; };
 function getCam() {
-  const pov = pano.getPov();
-  const zoom = pano.getZoom();
-  // Maps JS API: fov orizzontale = 180/2^zoom (verificare col ⌥+trascina se serve ritocco)
-  const hfov = 180 / Math.pow(2, zoom == null ? 1 : zoom);
-  return { heading: pov.heading, pitch: pov.pitch, hfov };
+  const pov = pano.getPov(), zoom = pano.getZoom();
+  return { heading: pov.heading, pitch: pov.pitch, hfov: 180 / Math.pow(2, zoom == null ? 1 : zoom) };
 }
-function focal(cam, w) { return (w / 2) / Math.tan((cam.hfov / 2) * D2R); }
+const focal = (cam, w) => (w / 2) / Math.tan((cam.hfov / 2) * D2R);
 function project(azDeg, altDeg, cam, w, h) {
   const az = azDeg * D2R, alt = altDeg * D2R;
   const v = [Math.cos(alt) * Math.sin(az), Math.cos(alt) * Math.cos(az), Math.sin(alt)];
@@ -137,27 +238,13 @@ function project(azDeg, altDeg, cam, w, h) {
   return { x: w / 2 + x * f, y: h / 2 - y * f };
 }
 
-// ---------- Disegno ----------
-function drawSun(x, y, phase, rPx) {
-  const glow = ctx.createRadialGradient(x, y, 2, x, y, 30);
-  const col = phase === 'totality' ? '255,60,60' : phase === 'partial' ? '255,150,40' : '255,200,40';
-  glow.addColorStop(0, `rgba(${col},0.85)`); glow.addColorStop(1, `rgba(${col},0)`);
-  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(x, y, 30, 0, 7); ctx.fill();
-  ctx.fillStyle = phase === 'totality' ? '#111' : `rgb(${col})`;
-  ctx.beginPath(); ctx.arc(x, y, Math.max(4, rPx), 0, 7); ctx.fill();
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+/* ---------- Disegno ---------- */
+function label(text, x, y, color, size) {
+  ctx.font = `700 ${size || 12}px ${getComputedStyle(document.body).fontFamily}`;
+  ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.strokeText(text, x, y);
+  ctx.fillStyle = color || '#f3f1ea'; ctx.fillText(text, x, y);
 }
-function drawMoon(x, y, rPx) {
-  ctx.fillStyle = 'rgba(40,45,60,0.75)';
-  ctx.beginPath(); ctx.arc(x, y, Math.max(4, rPx), 0, 7); ctx.fill();
-  ctx.strokeStyle = 'rgba(200,205,220,0.9)'; ctx.lineWidth = 1.5; ctx.stroke();
-}
-function label(text, x, y, color) {
-  ctx.font = 'bold 12px -apple-system, sans-serif';
-  ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.strokeText(text, x, y);
-  ctx.fillStyle = color || '#fff'; ctx.fillText(text, x, y);
-}
-const fmtTime = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+const fmtT = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
 
 function getDayPath(lat, lng) {
   const day = new Date(state.date); day.setHours(0, 0, 0, 0);
@@ -167,7 +254,7 @@ function getDayPath(lat, lng) {
   for (let min = 0; min < 1440; min += 5) {
     const t = new Date(day.getTime() + min * 60000);
     const s = sunPos(t, lat, lng);
-    if (s.alt < -6) continue;
+    if (s.alt < -4) continue;
     let phase = 'none';
     if (state.eclipse && Math.abs(t - state.eclipse.peak.time.date) < 2.5 * 3600000) {
       const m = moonPos(t, lat, lng);
@@ -181,8 +268,8 @@ function getDayPath(lat, lng) {
 }
 
 function render() {
-  const w = window.innerWidth, h = window.innerHeight;
-  if (canvas.width !== w * devicePixelRatio) {
+  const w = innerWidth, h = innerHeight;
+  if (canvas.width !== Math.round(w * devicePixelRatio)) {
     canvas.width = w * devicePixelRatio; canvas.height = h * devicePixelRatio;
     canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
   }
@@ -191,172 +278,241 @@ function render() {
   const pos = getPos();
   if (!pos || !pano.getVisible()) return;
   updateLocalEclipse(pos.lat, pos.lng);
-  const cam = getCam();
-  const f = focal(cam, w);
+  const cam = getCam(), f = focal(cam, w);
 
-  // orizzonte astronomico
+  // orizzonte
   ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.setLineDash([6, 6]); ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(243,241,234,.4)'; ctx.setLineDash([7, 7]); ctx.lineWidth = 1.4;
   ctx.beginPath();
-  let started = false;
+  let on = false;
   for (let az = 0; az <= 360; az += 2) {
     const p = project(az, 0, cam, w, h);
-    if (p) { started ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); started = true; }
-    else started = false;
+    if (p) { on ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); on = true; } else on = false;
   }
   ctx.stroke(); ctx.restore();
 
   // traiettoria
-  if (state.showSunPath) {
+  if (state.showPath) {
     const day = new Date(state.date); day.setHours(0, 0, 0, 0);
-    const pts = getDayPath(pos.lat, pos.lng);
+    const eclMin = state.eclipse ? (state.eclipse.peak.time.date.getHours() * 60 + state.eclipse.peak.time.date.getMinutes()) : null;
     let prev = null;
-    for (const pt of pts) {
+    ctx.lineCap = 'round';
+    for (const pt of getDayPath(pos.lat, pos.lng)) {
+      // di default mostro solo la finestra dell'eclissi: meno spaghetti sullo schermo
+      if (!state.wholeDay && eclMin !== null && Math.abs(pt.min - eclMin) > 130) { prev = null; continue; }
       const p = project(pt.az, pt.alt, cam, w, h);
       if (p && prev && prev.p && pt.min - prev.min === 5) {
-        ctx.strokeStyle = pt.phase === 'totality' ? 'rgba(255,60,60,0.95)'
-          : pt.phase === 'partial' ? 'rgba(255,150,40,0.9)'
-          : pt.alt < 0 ? 'rgba(255,200,40,0.25)' : 'rgba(255,200,40,0.7)';
+        ctx.strokeStyle = pt.phase === 'totality' ? 'rgba(255,82,82,.95)'
+          : pt.phase === 'partial' ? 'rgba(255,162,39,.9)'
+          : pt.alt < 0 ? 'rgba(255,162,39,.2)' : 'rgba(255,162,39,.5)';
         ctx.lineWidth = pt.phase === 'none' ? 2 : 4;
-        ctx.setLineDash(pt.alt < 0 ? [4, 4] : []);
+        ctx.setLineDash(pt.alt < 0 ? [4, 5] : []);
         ctx.beginPath(); ctx.moveTo(prev.p.x, prev.p.y); ctx.lineTo(p.x, p.y); ctx.stroke();
         ctx.setLineDash([]);
       }
-      if (p && pt.min % 60 === 0) {
+      if (p && pt.min % 30 === 0) {
         const t = new Date(day.getTime() + pt.min * 60000);
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
-        ctx.beginPath(); ctx.arc(p.x, p.y, 2.5, 0, 7); ctx.fill();
-        label(fmtTime(t), p.x + 6, p.y - 6, 'rgba(255,230,150,0.95)');
+        ctx.fillStyle = 'rgba(243,241,234,.85)';
+        ctx.beginPath(); ctx.arc(p.x, p.y, 2.2, 0, 7); ctx.fill();
+        if (pt.min % 60 === 0) label(fmtT(t), p.x + 7, p.y - 7, 'rgba(255,205,138,.95)', 11);
       }
       prev = { min: pt.min, p };
     }
   }
 
-  // sole + luna
+  // sole e luna
   const ph = phaseAt(state.date, pos.lat, pos.lng);
   const ps = project(ph.s.az, ph.s.alt, cam, w, h);
   const pm = project(ph.m.az, ph.m.alt, cam, w, h);
+  const rs = Math.max(5, f * Math.tan(ph.rs * D2R));
+
   if (ps) {
-    drawSun(ps.x, ps.y, ph.phase, f * Math.tan(ph.rs * D2R));
-    label('Sole ' + fmtTime(state.date) + '  az ' + ph.s.az.toFixed(0) + '° / alt ' + ph.s.alt.toFixed(1) + '°', ps.x + 18, ps.y - 12);
-    if (ph.s.alt < 0) label("(sotto l'orizzonte)", ps.x + 18, ps.y + 2, '#faa');
+    const isTot = ph.phase === 'totality';
+    const g = ctx.createRadialGradient(ps.x, ps.y, 2, ps.x, ps.y, rs * 5);
+    if (isTot) { g.addColorStop(0, 'rgba(243,241,234,.5)'); g.addColorStop(.4, 'rgba(255,140,90,.2)'); g.addColorStop(1, 'rgba(255,82,82,0)'); }
+    else { g.addColorStop(0, 'rgba(255,190,90,.55)'); g.addColorStop(1, 'rgba(255,162,39,0)'); }
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(ps.x, ps.y, rs * 5, 0, 7); ctx.fill();
+    ctx.fillStyle = isTot ? '#08090f' : (ph.phase === 'partial' ? '#ffb347' : '#ffcf6b');
+    ctx.beginPath(); ctx.arc(ps.x, ps.y, rs, 0, 7); ctx.fill();
+    ctx.strokeStyle = isTot ? 'rgba(243,241,234,.95)' : 'rgba(255,255,255,.9)'; ctx.lineWidth = 2; ctx.stroke();
+    const tag = isTot ? 'TOTALITÀ' : (ph.frac > 0 ? Math.round(ph.frac * 100) + '%' : fmtT(state.date));
+    label(tag, ps.x + rs + 8, ps.y - rs - 4, isTot ? '#ff8f8f' : '#ffcd8a', 13);
+    label(ph.s.alt.toFixed(1) + '° sull\'orizzonte', ps.x + rs + 8, ps.y - rs + 12, 'rgba(243,241,234,.8)', 11);
+    if (ph.s.alt < 0) label('sotto l\'orizzonte', ps.x + rs + 8, ps.y + rs + 4, '#ff8f8f', 11);
   }
   if (state.showMoon && pm) {
-    drawMoon(pm.x, pm.y, f * Math.tan(ph.rm * D2R));
-    if (ph.sep > ph.rs + ph.rm) label('Luna ' + ph.m.alt.toFixed(1) + '°', pm.x + 14, pm.y + 4, '#cdd3e0');
+    const rm = Math.max(5, f * Math.tan(ph.rm * D2R));
+    ctx.fillStyle = 'rgba(20,24,36,.72)';
+    ctx.beginPath(); ctx.arc(pm.x, pm.y, rm, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(180,190,215,.85)'; ctx.lineWidth = 1.4; ctx.stroke();
   }
-  if (!ps && ph.s.alt > -10) {
+  if (!ps && ph.s.alt > -12) {
     const dAz = ((ph.s.az - cam.heading + 540) % 360) - 180;
-    const txt = dAz > 0 ? 'Sole a destra →  (' + Math.abs(dAz).toFixed(0) + '°)' : '← Sole a sinistra  (' + Math.abs(dAz).toFixed(0) + '°)';
-    ctx.font = 'bold 15px -apple-system, sans-serif';
+    const txt = dAz > 0 ? 'il sole è a destra →' : '← il sole è a sinistra';
+    ctx.font = '700 15px ' + getComputedStyle(document.body).fontFamily;
     const tw = ctx.measureText(txt).width;
-    label(txt, dAz > 0 ? w - tw - 24 : 24, h / 2, '#ffd54a');
+    const bx = dAz > 0 ? w - tw - 26 : 26;
+    label(txt, bx, h * 0.42, '#ffcd8a', 15);
   }
-  updateReadout(ph);
+  updateUI(ph);
 }
 
-// ---------- Eclissi locale + pannello ----------
-const $ = (s) => document.querySelector(s);
-const dtInput = $('#dt'), slider = $('#slider'), readout = $('#readout');
+/* ---------- UI ---------- */
+const slider = $('#slider');
+function syncSlider() {
+  const mins = state.date.getHours() * 60 + state.date.getMinutes();
+  slider.value = mins;
+  const pct = ((mins - slider.min) / (slider.max - slider.min)) * 100;
+  slider.style.setProperty('--pct', pct + '%');
+  $('#clock').textContent = fmtT(state.date);
+}
+function setDate(d) { state.date = d; syncSlider(); render(); }
+slider.addEventListener('input', () => {
+  const d = new Date(state.date);
+  d.setHours(Math.floor(slider.value / 60), slider.value % 60, 0, 0);
+  setDate(d);
+});
 
 function updateLocalEclipse(lat, lng) {
   const key = lat.toFixed(2) + ',' + lng.toFixed(2);
   if (key === state.eclipseKey) return;
   state.eclipseKey = key;
-  try {
-    state.eclipse = Astronomy.SearchLocalSolarEclipse(new Date(state.date.getTime() - 3 * 86400000), observer(lat, lng));
-  } catch (e) { state.eclipse = null; }
-  updatePresets();
+  try { state.eclipse = Astronomy.SearchLocalSolarEclipse(new Date(state.date.getTime() - 3 * 86400000), observer(lat, lng)); }
+  catch (e) { state.eclipse = null; }
+  buildPresets();
+  // lo slider copre la finestra dell'eclissi con un margine
+  if (state.eclipse) {
+    const b = state.eclipse.partial_begin.time.date, e = state.eclipse.partial_end.time.date;
+    slider.min = Math.max(0, b.getHours() * 60 + b.getMinutes() - 15);
+    slider.max = Math.min(1439, e.getHours() * 60 + e.getMinutes() + 15);
+    syncSlider();
+  }
 }
-function toLocalInput(d) {
-  const p = (n) => String(n).padStart(2, '0');
-  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
-}
-function syncInputs() { dtInput.value = toLocalInput(state.date); slider.value = state.date.getHours() * 60 + state.date.getMinutes(); }
-function setDate(d) { state.date = d; syncInputs(); render(); }
 
-dtInput.addEventListener('input', () => { if (dtInput.value) setDate(new Date(dtInput.value)); });
-slider.addEventListener('input', () => {
-  const d = new Date(state.date);
-  d.setHours(Math.floor(slider.value / 60), slider.value % 60, 0, 0);
-  state.date = d; dtInput.value = toLocalInput(d); render();
-});
-
-function updatePresets() {
-  const box = $('#presets');
-  box.innerHTML = '';
+function buildPresets() {
+  const box = $('#presets'); box.innerHTML = '';
   const e = state.eclipse;
-  const mk = (txt, cls, date, secs) => {
+  const mk = (top, time, cls, date, secs) => {
     const b = document.createElement('button');
-    b.textContent = txt; if (cls) b.className = cls;
+    b.innerHTML = top + '<b>' + time + '</b>';
+    if (cls) b.className = cls;
     b.addEventListener('click', () => { const d = new Date(date); if (!secs) d.setSeconds(0, 0); setDate(d); });
     box.appendChild(b);
   };
   if (e) {
-    mk('Parziale ' + fmtTime(e.partial_begin.time.date), '', e.partial_begin.time.date);
-    if (e.kind === 'total' && e.total_begin) mk('TOTALITÀ ' + fmtTime(e.total_begin.time.date), 'tot', e.total_begin.time.date, true);
-    else mk('MAX ' + fmtTime(e.peak.time.date) + ' (' + Math.round(e.obscuration * 100) + '%)', 'pmax', e.peak.time.date, true);
-    mk('Fine ' + fmtTime(e.partial_end.time.date), '', e.partial_end.time.date);
+    mk('inizio', fmtT(e.partial_begin.time.date), '', e.partial_begin.time.date);
+    if (e.kind === 'total' && e.total_begin) mk('totalità', fmtT(e.total_begin.time.date), 'peak', e.total_begin.time.date, true);
+    else mk('massimo', fmtT(e.peak.time.date), 'peak partial', e.peak.time.date, true);
+    mk('fine', fmtT(e.partial_end.time.date), '', e.partial_end.time.date);
   }
   const play = document.createElement('button');
   play.className = 'play'; play.textContent = state.playing ? '⏸' : '▶';
+  play.title = 'Anima il movimento';
   play.addEventListener('click', togglePlay);
   box.appendChild(play);
-
-  const info = $('#einfo');
-  if (e) {
-    info.innerHTML = e.kind === 'total'
-      ? '✅ Questo punto è nella <b>fascia di totalità</b> (' + fmtTime(e.total_begin.time.date) + '–' + fmtTime(e.total_end.time.date) + ', max ' + fmtTime(e.peak.time.date) + ')'
-      : '⚠️ Qui l\'eclissi è solo <b>parziale</b> (max ' + Math.round(e.obscuration * 100) + '% alle ' + fmtTime(e.peak.time.date) + '). Spostati nella fascia di totalità';
-  } else info.textContent = '';
 }
 let playTimer = null;
 function togglePlay() {
   state.playing = !state.playing;
-  const btn = document.querySelector('#presets .play'); if (btn) btn.textContent = state.playing ? '⏸' : '▶';
-  if (state.playing) playTimer = setInterval(() => { state.date = new Date(state.date.getTime() + 60000); syncInputs(); render(); }, 120);
+  const b = document.querySelector('#presets .play'); if (b) b.textContent = state.playing ? '⏸' : '▶';
+  if (state.playing) playTimer = setInterval(() => {
+    let d = new Date(state.date.getTime() + 60000);
+    if (state.eclipse && d > state.eclipse.partial_end.time.date) d = new Date(state.eclipse.partial_begin.time.date);
+    setDate(d);
+  }, 150);
   else clearInterval(playTimer);
 }
-$('#tpath').addEventListener('change', (e) => { state.showSunPath = e.target.checked; render(); });
-$('#tmoon').addEventListener('change', (e) => { state.showMoon = e.target.checked; render(); });
 
-function updateReadout(ph) {
+function updateUI(ph) {
   const cover = Math.round(ph.frac * 100);
-  const phaseTxt = ph.phase === 'totality' ? '<b class="red">● TOTALITÀ</b>'
-    : ph.phase === 'partial' ? '<b class="orange">◐ parziale ' + cover + '%</b>' : '';
-  readout.innerHTML =
-    '☀️ az ' + ph.s.az.toFixed(1) + '° · alt ' + ph.s.alt.toFixed(1) + '°' +
-    (ph.s.alt < 0 ? ' <span class="red">(sotto orizzonte)</span>' : '') + '<br>' +
-    '🌙 az ' + ph.m.az.toFixed(1) + '° · alt ' + ph.m.alt.toFixed(1) + '°<br>' +
-    'sep ' + ph.sep.toFixed(3) + '° · copertura sole ' + cover + '% ' + phaseTxt;
+  const cv = $('#cover');
+  cv.innerHTML = '<span>sole coperto</span>' + cover + '%';
+  cv.classList.toggle('is-total', ph.phase === 'totality');
+
+  const st = $('#status'), e = state.eclipse;
+  st.classList.toggle('is-total', ph.phase === 'totality');
+  st.classList.toggle('is-out', !!e && e.kind !== 'total');
+  if (e) {
+    $('#statusText').innerHTML = e.kind === 'total'
+      ? 'Qui vedi la <b>totalità</b> · ' + fmtT(e.total_begin.time.date) + '–' + fmtT(e.total_end.time.date)
+      : 'Qui è parziale · max <b>' + Math.round(e.obscuration * 100) + '%</b>';
+  } else $('#statusText').textContent = 'nessuna eclissi in questo punto';
+
+  $('#readout').innerHTML =
+    'sole &nbsp;<b>' + ph.s.az.toFixed(1) + '°</b> az &nbsp;<b>' + ph.s.alt.toFixed(1) + '°</b> alt<br>' +
+    'luna &nbsp;<b>' + ph.m.az.toFixed(1) + '°</b> az &nbsp;<b>' + ph.m.alt.toFixed(1) + '°</b> alt<br>' +
+    'distanza sole-luna <b>' + ph.sep.toFixed(3) + '°</b>';
 }
 
-// ---------- Init Maps ----------
+$('#btnMore').addEventListener('click', () => {
+  const d = $('#details'), open = d.classList.toggle('open');
+  $('#btnMore').textContent = open ? 'dettagli –' : 'dettagli +';
+});
+$('#tpath').addEventListener('change', (e) => { state.showPath = e.target.checked; render(); });
+$('#tmoon').addEventListener('change', (e) => { state.showMoon = e.target.checked; render(); });
+$('#tday').addEventListener('change', (e) => { state.wholeDay = e.target.checked; render(); });
+
+/* sheet mappa */
+function openSheet(open) {
+  $('#sheet').classList.toggle('open', open);
+  $('#scrim').classList.toggle('open', open);
+  $('#btnMap').setAttribute('aria-pressed', open ? 'true' : 'false');
+  $('#hint').classList.add('hide');
+  if (open && map) setTimeout(() => { google.maps.event.trigger(map, 'resize'); const p = getPos(); if (p) map.setCenter(p); }, 280);
+}
+$('#btnMap').addEventListener('click', () => openSheet(!$('#sheet').classList.contains('open')));
+$('#btnClose').addEventListener('click', () => openSheet(false));
+$('#scrim').addEventListener('click', () => openSheet(false));
+
+/* punta verso il sole */
+$('#btnSun').addEventListener('click', () => {
+  const pos = getPos(); if (!pos) return;
+  const s = sunPos(state.date, pos.lat, pos.lng);
+  pano.setPov({ heading: s.az, pitch: Math.max(-10, Math.min(30, s.alt + 4)) });
+  $('#hint').classList.add('hide');
+});
+
+/* ---------- Init ---------- */
 function initApp() {
   const start = { lat: 41.65704, lng: -0.87759 }; // Puente de Piedra, Zaragoza
-  pano = new google.maps.StreetViewPanorama(document.getElementById('pano'), {
-    position: start,
-    pov: { heading: 285, pitch: 5 },
-    zoom: 1,
-    motionTracking: false,
-    fullscreenControl: false,
+  pano = new google.maps.StreetViewPanorama($('#pano'), {
+    position: start, pov: { heading: 285, pitch: 4 }, zoom: 1,
+    motionTracking: false, fullscreenControl: false, addressControl: false,
+    linksControl: true, panControl: false, zoomControl: false, enableCloseButton: false,
   });
-  map = new google.maps.Map(document.getElementById('map'), {
-    center: start, zoom: 6,
-    streetViewControl: true, mapTypeControl: false, fullscreenControl: false,
+  map = new google.maps.Map($('#map'), {
+    center: start, zoom: 7, streetViewControl: true, mapTypeControl: false,
+    fullscreenControl: false, clickableIcons: false,
+    styles: [{ elementType: 'geometry', stylers: [{ saturation: -30 }] }],
   });
   map.setStreetView(pano);
-  pano.addListener('pov_changed', render);
-  pano.addListener('zoom_changed', render);
-  pano.addListener('pano_changed', render);
-  pano.addListener('position_changed', render);
-  pano.addListener('visible_changed', render);
-  window.addEventListener('resize', render);
-  syncInputs();
+  svService = new google.maps.StreetViewService();
+  marker = new google.maps.Marker({ map, position: start, title: 'Punto scelto' });
+
+  map.addListener('click', (ev) => {
+    svService.getPanorama({ location: ev.latLng, radius: 120, source: 'outdoor' }, (data, status) => {
+      if (status === 'OK') {
+        pano.setPano(data.location.pano);
+        marker.setPosition(data.location.latLng);
+        openSheet(false);
+      } else {
+        const hint = $('#hint');
+        hint.textContent = 'Qui non c\'è Street View, prova più vicino a una strada';
+        hint.classList.remove('hide');
+        setTimeout(() => hint.classList.add('hide'), 3200);
+      }
+    });
+  });
+
+  ['pov_changed', 'zoom_changed', 'pano_changed', 'position_changed', 'visible_changed'].forEach((ev) => pano.addListener(ev, render));
+  pano.addListener('position_changed', () => { const p = getPos(); if (p && marker) marker.setPosition(p); });
+  addEventListener('resize', render);
+  syncSlider();
   render();
+  setTimeout(() => $('#hint').classList.add('hide'), 6000);
 }
 window.initApp = initApp;
 </script>
-<script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBcnYkcvoYx5I5qQZb1oRaUTy_VmMb2DNU&callback=initApp&v=weekly&language=it"></script>
+<script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBcnYkcvoYx5I5qQZb1oRaUTy_VmMb2DNU&callback=initApp&v=weekly&language=it&region=IT"></script>
 </body>
 </html>
