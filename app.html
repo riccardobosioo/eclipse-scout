@@ -345,36 +345,38 @@ function getCam() {
    l'orizzontale per non superare un fov verticale massimo. Con la sola formula da desktop
    l'overlay è giusto al centro ma scivola appena inclini la vista.
    Perciò: stima prudente + calibrazione misurata dal trascinamento dell'utente. */
-const VFOV_AT_ZOOM_1 = 63; // misurato: desktop 1280x800 e iPhone danno entrambi ~60-64°
-const vfovStore = { byZoom: {} };
-try {
-  const saved = JSON.parse(localStorage.getItem('eclipseScout:vfov:v1') || 'null');
-  if (saved && typeof saved === 'object') vfovStore.byZoom = saved;
-} catch (e) { /* storage non disponibile */ }
+/* Regola empirica: il fov nominale (180/2^zoom) è applicato al LATO LUNGO del riquadro.
+   Desktop orizzontale = larghezza (verificato al pixel sul ponte di Zaragoza);
+   telefono verticale = altezza. Con la sola larghezza su schermo verticale l'orizzonte
+   si muoveva troppo poco; col fov verticale fisso troppo. Il lato lungo spiega entrambi. */
+function defaultFocal(cam, w, h) {
+  return (Math.max(w, h) / 2) / Math.tan((cam.hfov / 2) * D2R);
+}
 
+// rifinitura misurata dal trascinamento, come rapporto rispetto alla stima (adimensionale)
+const fcal = { byZoom: {} };
+try {
+  const saved = JSON.parse(localStorage.getItem('eclipseScout:fcal:v2') || 'null');
+  if (saved && typeof saved === 'object') fcal.byZoom = saved;
+} catch (e) { /* storage non disponibile */ }
 const zoomKey = (z) => String(Math.round(z * 2) / 2);
-// raddoppiando lo zoom si dimezza la tangente del semicampo
-function defaultVfov(zoom) {
-  const t = Math.tan((VFOV_AT_ZOOM_1 / 2) * D2R) * Math.pow(2, 1 - zoom);
-  return 2 * Math.atan(t) * R2D;
-}
-function currentVfov(cam) {
-  const saved = vfovStore.byZoom[zoomKey(cam.zoom)];
-  return (Number.isFinite(saved) && saved > 5 && saved < 170) ? saved : defaultVfov(cam.zoom);
-}
-// pixel per radiante al centro dell'inquadratura
+
 function focal(cam, w, h) {
   const height = h || window.innerHeight;
-  const byHeight = (height / 2) / Math.tan((currentVfov(cam) / 2) * D2R);
-  return Number.isFinite(byHeight) && byHeight > 1 ? byHeight : height;
+  const base = defaultFocal(cam, w, height);
+  const ratio = fcal.byZoom[zoomKey(cam.zoom)];
+  const f = (Number.isFinite(ratio) && ratio > 0.6 && ratio < 1.6) ? base * ratio : base;
+  return Number.isFinite(f) && f > 1 ? f : height;
 }
-function saveVfov(zoom, vfov) {
-  if (!Number.isFinite(vfov) || vfov < 5 || vfov > 170) return;
+function saveFocalMeasurement(zoom, measuredF, w, h) {
+  const base = defaultFocal({ hfov: 180 / Math.pow(2, zoom) }, w, h);
+  if (!Number.isFinite(measuredF) || !Number.isFinite(base) || base <= 0) return;
+  let ratio = measuredF / base;
+  if (ratio < 0.6 || ratio > 1.6) return; // misura implausibile: scartala
   const key = zoomKey(zoom);
-  const prev = vfovStore.byZoom[key];
-  // media mobile: la prima misura conta molto, le successive rifiniscono
-  vfovStore.byZoom[key] = Number.isFinite(prev) ? prev * 0.7 + vfov * 0.3 : vfov;
-  try { localStorage.setItem('eclipseScout:vfov:v1', JSON.stringify(vfovStore.byZoom)); } catch (e) { /* ignora */ }
+  const prev = fcal.byZoom[key];
+  fcal.byZoom[key] = Number.isFinite(prev) ? prev * 0.5 + ratio * 0.5 : ratio;
+  try { localStorage.setItem('eclipseScout:fcal:v2', JSON.stringify(fcal.byZoom)); } catch (e) { /* ignora */ }
 }
 function project(azDeg, altDeg, cam, w, h) {
   const az = azDeg * D2R, alt = altDeg * D2R;
@@ -734,15 +736,12 @@ $('#placeSearch').addEventListener('submit', (e) => {
   wrap.addEventListener('pointermove', (e) => {
     if (!drag || !pano) return;
     const dy = e.clientY - drag.y;
-    if (Math.abs(dy) < 45) return; // troppo poco per misurare bene
+    if (Math.abs(dy) < 60) return; // gesto troppo corto per una misura pulita
     const pov = pano.getPov();
     if (!pov || !Number.isFinite(pov.pitch)) return;
     const dTan = Math.tan(pov.pitch * D2R) - Math.tan(drag.pitch * D2R);
-    if (Math.abs(dTan) > 1e-3) {
-      const f = Math.abs(dy / dTan);
-      const h = window.innerHeight;
-      const vfov = 2 * Math.atan((h / 2) / f) * R2D;
-      saveVfov(drag.zoom, vfov);
+    if (Math.abs(dTan) > 0.02) {
+      saveFocalMeasurement(drag.zoom, Math.abs(dy / dTan), window.innerWidth, window.innerHeight);
     }
     drag = { y: e.clientY, pitch: pov.pitch, zoom: pano.getZoom() };
   }, true);
