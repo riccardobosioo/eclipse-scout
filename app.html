@@ -353,30 +353,37 @@ function defaultFocal(cam, w, h) {
   return (Math.max(w, h) / 2) / Math.tan((cam.hfov / 2) * D2R);
 }
 
-// rifinitura misurata dal trascinamento, come rapporto rispetto alla stima (adimensionale)
+/* Rifinitura misurata dal trascinamento (rapporto adimensionale vs stima).
+   La misura del dito VINCE sul modello: su alcuni dispositivi la scala reale
+   dista anche 3x dalla formula, quindi il range accettato è volutamente largo. */
 const fcal = { byZoom: {} };
 try {
-  const saved = JSON.parse(localStorage.getItem('eclipseScout:fcal:v2') || 'null');
+  const saved = JSON.parse(localStorage.getItem('eclipseScout:fcal:v3') || 'null');
   if (saved && typeof saved === 'object') fcal.byZoom = saved;
 } catch (e) { /* storage non disponibile */ }
 const zoomKey = (z) => String(Math.round(z * 2) / 2);
 
+function calRatio(zoom) {
+  const r = fcal.byZoom[zoomKey(zoom)];
+  return (Number.isFinite(r) && r > 0.1 && r < 10) ? r : null;
+}
 function focal(cam, w, h) {
   const height = h || window.innerHeight;
   const base = defaultFocal(cam, w, height);
-  const ratio = fcal.byZoom[zoomKey(cam.zoom)];
-  const f = (Number.isFinite(ratio) && ratio > 0.6 && ratio < 1.6) ? base * ratio : base;
+  const ratio = calRatio(cam.zoom);
+  const f = ratio ? base * ratio : base;
   return Number.isFinite(f) && f > 1 ? f : height;
 }
 function saveFocalMeasurement(zoom, measuredF, w, h) {
   const base = defaultFocal({ hfov: 180 / Math.pow(2, zoom) }, w, h);
   if (!Number.isFinite(measuredF) || !Number.isFinite(base) || base <= 0) return;
-  let ratio = measuredF / base;
-  if (ratio < 0.6 || ratio > 1.6) return; // misura implausibile: scartala
+  const ratio = measuredF / base;
+  if (ratio < 0.1 || ratio > 10) return; // solo anti-spazzatura
   const key = zoomKey(zoom);
   const prev = fcal.byZoom[key];
-  fcal.byZoom[key] = Number.isFinite(prev) ? prev * 0.5 + ratio * 0.5 : ratio;
-  try { localStorage.setItem('eclipseScout:fcal:v2', JSON.stringify(fcal.byZoom)); } catch (e) { /* ignora */ }
+  // la prima misura vince subito, le successive rifiniscono
+  fcal.byZoom[key] = Number.isFinite(prev) ? prev * 0.4 + ratio * 0.6 : ratio;
+  try { localStorage.setItem('eclipseScout:fcal:v3', JSON.stringify(fcal.byZoom)); } catch (e) { /* ignora */ }
 }
 function project(azDeg, altDeg, cam, w, h) {
   const az = azDeg * D2R, alt = altDeg * D2R;
@@ -602,10 +609,14 @@ function updateUI(ph) {
       : 'Qui è parziale · max <b>' + Math.round(e.obscuration * 100) + '%</b>';
   } else $('#statusText').textContent = 'nessuna eclissi in questo punto';
 
+  const cam2 = pano ? getCam() : null;
+  const calInfo = cam2 ? (calRatio(cam2.zoom) ? ' · cal ' + Math.round(calRatio(cam2.zoom) * 100) + '%' : ' · non calibrata') : '';
   $('#readout').innerHTML =
     'sole &nbsp;<b>' + ph.s.az.toFixed(1) + '°</b> az &nbsp;<b>' + ph.s.alt.toFixed(1) + '°</b> alt<br>' +
     'luna &nbsp;<b>' + ph.m.az.toFixed(1) + '°</b> az &nbsp;<b>' + ph.m.alt.toFixed(1) + '°</b> alt<br>' +
-    'distanza sole-luna <b>' + ph.sep.toFixed(3) + '°</b>';
+    'distanza sole-luna <b>' + ph.sep.toFixed(3) + '°</b><br>' +
+    'scala <b>f=' + (cam2 ? Math.round(focal(cam2, innerWidth, innerHeight)) : '?') + '</b>' +
+    ' · zoom <b>' + (cam2 ? cam2.zoom.toFixed(2) : '?') + '</b>' + calInfo;
 }
 
 $('#btnMore').addEventListener('click', () => {
