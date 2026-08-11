@@ -94,7 +94,19 @@
   .toggles { display: flex; gap: 16px; margin-top: 8px; font-size: 12.5px; color: var(--dim); }
   .toggles label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
   .toggles input { accent-color: var(--amber); width: 15px; height: 15px; }
-  .more { background: none; border: 0; color: var(--dim); font: 600 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; padding: 4px 0 0; align-self: flex-start; }
+  /* pillola sospesa sopra la barra, sovrapposta al panorama */
+  .place-pill {
+    position: absolute; top: -54px; left: 50%; transform: translateX(-50%);
+    display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+    height: 44px; padding: 0 18px; border: 0; border-radius: 999px;
+    background: var(--amber); color: var(--amber-ink);
+    font: 700 14px/1 var(--sans); cursor: pointer;
+    box-shadow: 0 6px 20px rgba(0,0,0,.5);
+  }
+  .place-pill:hover { background: #ffb347; }
+  .place-pill:active { transform: translateX(-50%) scale(.97); }
+  .place-pill svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .more { background: none; border: 0; color: var(--dim); font: 600 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; padding: 10px 2px; flex: none; }
 
   /* ---------- Sheet mappa ---------- */
   #sheet {
@@ -114,14 +126,15 @@
   .place-search { padding: 10px 14px; border-bottom: 1px solid var(--edge); }
   .search-row { display: flex; gap: 8px; }
   .search-row input {
-    min-width: 0; flex: 1; height: 42px; padding: 0 12px;
+    min-width: 0; flex: 1; height: 44px; padding: 0 12px;
     border: 1px solid var(--edge); border-radius: 10px;
     background: rgba(255,255,255,.07); color: var(--corona);
-    font: 500 14px/1 var(--sans);
+    /* 16px obbligatori: sotto questa soglia iOS ingrandisce la pagina al focus */
+    font: 500 16px/1 var(--sans);
   }
   .search-row input::placeholder { color: #858da3; }
   .search-row button {
-    height: 42px; padding: 0 13px; display: inline-flex; align-items: center; gap: 7px;
+    height: 44px; padding: 0 13px; display: inline-flex; align-items: center; gap: 7px; flex: none;
     border: 1px solid var(--amber); border-radius: 10px;
     background: var(--amber); color: var(--amber-ink); cursor: pointer;
     font: 700 13px/1 var(--sans);
@@ -151,7 +164,7 @@
   /* ---------- Hint iniziale ---------- */
   #hint {
     position: fixed; z-index: 6; left: 50%; transform: translateX(-50%);
-    bottom: calc(210px + var(--safe-b)); width: max-content; max-width: calc(100vw - 40px);
+    bottom: calc(272px + var(--safe-b)); width: max-content; max-width: calc(100vw - 40px);
     background: var(--amber); color: var(--amber-ink); font: 600 13px/1.35 var(--sans);
     padding: 10px 14px; border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.45);
     transition: opacity .3s ease;
@@ -194,6 +207,10 @@
 <div id="hint" role="status">Apri la mappa: scegli un punto o cerca un luogo</div>
 
 <div id="dock">
+  <button class="place-pill" id="btnPlace" type="button">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 5-2 8 3 5-2v13l-5 2-8-3-5 2Z"/><path d="M8 4v13M16 7v13"/></svg>
+    <span>Cambia posizione</span>
+  </button>
   <div class="timerow">
     <div class="clock"><span id="clock">20:29</span><span class="date">12 ago 2026</span></div>
     <div class="cover" id="cover"><span>sole coperto</span>—</div>
@@ -316,10 +333,49 @@ const canvas = $('#overlay'), ctx = canvas.getContext('2d');
 
 const getPos = () => { const p = pano && pano.getPosition(); return p ? { lat: p.lat(), lng: p.lng() } : null; };
 function getCam() {
-  const pov = pano.getPov(), zoom = pano.getZoom();
-  return { heading: pov.heading, pitch: pov.pitch, hfov: 180 / Math.pow(2, zoom == null ? 1 : zoom) };
+  const pov = pano.getPov() || {}, zoom = pano.getZoom();
+  const heading = Number.isFinite(pov.heading) ? pov.heading : 0;
+  const pitch = Number.isFinite(pov.pitch) ? pov.pitch : 0;
+  const z = Number.isFinite(zoom) ? zoom : 1;
+  return { heading, pitch, hfov: 180 / Math.pow(2, z), zoom: z };
 }
-const focal = (cam, w) => (w / 2) / Math.tan((cam.hfov / 2) * D2R);
+
+/* Focale (pixel per radiante al centro).
+   Street View non applica il fov nominale alla larghezza su schermi verticali: comprime
+   l'orizzontale per non superare un fov verticale massimo. Con la sola formula da desktop
+   l'overlay è giusto al centro ma scivola appena inclini la vista.
+   Perciò: stima prudente + calibrazione misurata dal trascinamento dell'utente. */
+const VFOV_AT_ZOOM_1 = 63; // misurato: desktop 1280x800 e iPhone danno entrambi ~60-64°
+const vfovStore = { byZoom: {} };
+try {
+  const saved = JSON.parse(localStorage.getItem('eclipseScout:vfov:v1') || 'null');
+  if (saved && typeof saved === 'object') vfovStore.byZoom = saved;
+} catch (e) { /* storage non disponibile */ }
+
+const zoomKey = (z) => String(Math.round(z * 2) / 2);
+// raddoppiando lo zoom si dimezza la tangente del semicampo
+function defaultVfov(zoom) {
+  const t = Math.tan((VFOV_AT_ZOOM_1 / 2) * D2R) * Math.pow(2, 1 - zoom);
+  return 2 * Math.atan(t) * R2D;
+}
+function currentVfov(cam) {
+  const saved = vfovStore.byZoom[zoomKey(cam.zoom)];
+  return (Number.isFinite(saved) && saved > 5 && saved < 170) ? saved : defaultVfov(cam.zoom);
+}
+// pixel per radiante al centro dell'inquadratura
+function focal(cam, w, h) {
+  const height = h || window.innerHeight;
+  const byHeight = (height / 2) / Math.tan((currentVfov(cam) / 2) * D2R);
+  return Number.isFinite(byHeight) && byHeight > 1 ? byHeight : height;
+}
+function saveVfov(zoom, vfov) {
+  if (!Number.isFinite(vfov) || vfov < 5 || vfov > 170) return;
+  const key = zoomKey(zoom);
+  const prev = vfovStore.byZoom[key];
+  // media mobile: la prima misura conta molto, le successive rifiniscono
+  vfovStore.byZoom[key] = Number.isFinite(prev) ? prev * 0.7 + vfov * 0.3 : vfov;
+  try { localStorage.setItem('eclipseScout:vfov:v1', JSON.stringify(vfovStore.byZoom)); } catch (e) { /* ignora */ }
+}
 function project(azDeg, altDeg, cam, w, h) {
   const az = azDeg * D2R, alt = altDeg * D2R;
   const v = [Math.cos(alt) * Math.sin(az), Math.cos(alt) * Math.cos(az), Math.sin(alt)];
@@ -331,8 +387,10 @@ function project(azDeg, altDeg, cam, w, h) {
   if (d <= 0.05) return null;
   const x = (v[0] * right[0] + v[1] * right[1] + v[2] * right[2]) / d;
   const y = (v[0] * up[0] + v[1] * up[1] + v[2] * up[2]) / d;
-  const f = focal(cam, w);
-  return { x: w / 2 + x * f, y: h / 2 - y * f };
+  const f = focal(cam, w, h);
+  const px = w / 2 + x * f, py = h / 2 - y * f;
+  if (!Number.isFinite(px) || !Number.isFinite(py)) return null;
+  return { x: px, y: py };
 }
 
 /* ---------- Disegno ---------- */
@@ -375,10 +433,12 @@ function render() {
   const pos = getPos();
   if (!pos || !pano.getVisible()) return;
   updateLocalEclipse(pos.lat, pos.lng);
-  const cam = getCam(), f = focal(cam, w);
+  const cam = getCam(), f = focal(cam, w, h);
+  if (!Number.isFinite(f) || f <= 0) return;
 
   // posizioni: servono prima, per non scriverci sopra le etichette orarie
   const ph = phaseAt(state.date, pos.lat, pos.lng);
+  if (!Number.isFinite(ph.s.az) || !Number.isFinite(ph.s.alt)) return;
   const ps = project(ph.s.az, ph.s.alt, cam, w, h);
   const pm = project(ph.m.az, ph.m.alt, cam, w, h);
 
@@ -424,7 +484,8 @@ function render() {
   }
 
   // sole e luna
-  const rs = Math.max(5, f * Math.tan(ph.rs * D2R));
+  const rsRaw = f * Math.tan(ph.rs * D2R);
+  const rs = Number.isFinite(rsRaw) ? Math.max(5, Math.min(200, rsRaw)) : 5;
 
   if (ps) {
     const isTot = ph.phase === 'totality';
@@ -441,7 +502,8 @@ function render() {
     if (ph.s.alt < 0) label('sotto l\'orizzonte', ps.x + rs + 8, ps.y + rs + 4, '#ff8f8f', 11);
   }
   if (state.showMoon && pm) {
-    const rm = Math.max(5, f * Math.tan(ph.rm * D2R));
+    const rmRaw = f * Math.tan(ph.rm * D2R);
+    const rm = Number.isFinite(rmRaw) ? Math.max(5, Math.min(200, rmRaw)) : 5;
     ctx.fillStyle = 'rgba(20,24,36,.72)';
     ctx.beginPath(); ctx.arc(pm.x, pm.y, rm, 0, 7); ctx.fill();
     ctx.strokeStyle = 'rgba(180,190,215,.85)'; ctx.lineWidth = 1.4; ctx.stroke();
@@ -586,6 +648,7 @@ function openSheet(open) {
   }, 280);
 }
 $('#btnMap').addEventListener('click', () => openSheet(!$('#sheet').classList.contains('open')));
+$('#btnPlace').addEventListener('click', () => openSheet(true));
 $('#btnClose').addEventListener('click', () => openSheet(false));
 $('#scrim').addEventListener('click', () => openSheet(false));
 $('#btnCoachDone').addEventListener('click', dismissMapCoach);
@@ -652,6 +715,42 @@ $('#placeSearch').addEventListener('submit', (e) => {
     });
   });
 });
+
+/* ---------- Calibrazione automatica della scala ----------
+   Mentre l'utente trascina il panorama, confrontiamo i pixel percorsi dal dito con i gradi
+   che Street View ha effettivamente ruotato: da lì ricaviamo il campo visivo reale del
+   dispositivo, senza doverlo indovinare. */
+(function setupAutoCalibration() {
+  let drag = null;
+  const wrap = document.getElementById('panoWrap');
+
+  wrap.addEventListener('pointerdown', (e) => {
+    if (!pano) return;
+    const pov = pano.getPov();
+    if (!pov || !Number.isFinite(pov.pitch)) return;
+    drag = { y: e.clientY, pitch: pov.pitch, zoom: pano.getZoom() };
+  }, true);
+
+  wrap.addEventListener('pointermove', (e) => {
+    if (!drag || !pano) return;
+    const dy = e.clientY - drag.y;
+    if (Math.abs(dy) < 45) return; // troppo poco per misurare bene
+    const pov = pano.getPov();
+    if (!pov || !Number.isFinite(pov.pitch)) return;
+    const dTan = Math.tan(pov.pitch * D2R) - Math.tan(drag.pitch * D2R);
+    if (Math.abs(dTan) > 1e-3) {
+      const f = Math.abs(dy / dTan);
+      const h = window.innerHeight;
+      const vfov = 2 * Math.atan((h / 2) / f) * R2D;
+      saveVfov(drag.zoom, vfov);
+    }
+    drag = { y: e.clientY, pitch: pov.pitch, zoom: pano.getZoom() };
+  }, true);
+
+  const end = () => { drag = null; };
+  wrap.addEventListener('pointerup', end, true);
+  wrap.addEventListener('pointercancel', end, true);
+})();
 
 /* punta verso il sole */
 $('#btnSun').addEventListener('click', () => {
