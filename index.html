@@ -296,6 +296,14 @@
     draw();
     if (anim < 1) requestAnimationFrame(loop);
   }
+  // conteggio dei download (evento separato dalle visite)
+  const dl = document.getElementById('dl');
+  if (dl) dl.addEventListener('click', function () {
+    if (window.goatcounter && window.goatcounter.count) {
+      window.goatcounter.count({ path: 'download-zip', title: 'Download estensione', event: true });
+    }
+  });
+
   requestAnimationFrame(loop);
   setTimeout(() => { anim = animNow(); draw(); }, 1700); // stato finale garantito anche con rAF throttled
   addEventListener('resize', () => { anim = animNow(); draw(); });
