@@ -396,8 +396,10 @@ function project(azDeg, altDeg, cam, w, h) {
   if (d <= 0.05) return null;
   const x = (v[0] * right[0] + v[1] * right[1] + v[2] * right[2]) / d;
   const y = (v[0] * up[0] + v[1] * up[1] + v[2] * up[2]) / d;
-  const f = focal(cam, w, h);
-  const px = w / 2 + x * f, py = h / 2 - y * f;
+  const cal = (typeof activeCal === 'function') ? activeCal() : null;
+  const f = cal ? cal.f : focal(cam, w, h);
+  const px = w / 2 + (cal ? cal.cx : 0) + x * f;
+  const py = h / 2 + (cal ? cal.cy : 0) - y * f;
   if (!Number.isFinite(px) || !Number.isFinite(py)) return null;
   return { x: px, y: py };
 }
@@ -441,8 +443,12 @@ function render() {
   ctx.clearRect(0, 0, w, h);
   const pos = getPos();
   if (!pos || !pano.getVisible()) return;
+  ensureProbes();
+  measureFromProbes(); // auto-throttled: legge dove Google ha disegnato le sonde
   updateLocalEclipse(pos.lat, pos.lng);
-  const cam = getCam(), f = focal(cam, w, h);
+  const cam = getCam();
+  const calNow = activeCal();
+  const f = calNow ? calNow.f : focal(cam, w, h);
   if (!Number.isFinite(f) || f <= 0) return;
 
   // posizioni: servono prima, per non scriverci sopra le etichette orarie
@@ -610,13 +616,15 @@ function updateUI(ph) {
   } else $('#statusText').textContent = 'nessuna eclissi in questo punto';
 
   const cam2 = pano ? getCam() : null;
-  const calInfo = cam2 ? (calRatio(cam2.zoom) ? ' · cal ' + Math.round(calRatio(cam2.zoom) * 100) + '%' : ' · non calibrata') : '';
+  const calNow2 = activeCal();
+  const fShown = calNow2 ? calNow2.f : (cam2 ? focal(cam2, innerWidth, innerHeight) : null);
   $('#readout').innerHTML =
     'sole &nbsp;<b>' + ph.s.az.toFixed(1) + '°</b> az &nbsp;<b>' + ph.s.alt.toFixed(1) + '°</b> alt<br>' +
     'luna &nbsp;<b>' + ph.m.az.toFixed(1) + '°</b> az &nbsp;<b>' + ph.m.alt.toFixed(1) + '°</b> alt<br>' +
     'distanza sole-luna <b>' + ph.sep.toFixed(3) + '°</b><br>' +
-    'scala <b>f=' + (cam2 ? Math.round(focal(cam2, innerWidth, innerHeight)) : '?') + '</b>' +
-    ' · zoom <b>' + (cam2 ? cam2.zoom.toFixed(2) : '?') + '</b>' + calInfo;
+    'scala <b>f=' + (fShown ? Math.round(fShown) : '?') + '</b>' +
+    ' · zoom <b>' + (cam2 ? cam2.zoom.toFixed(2) : '?') + '</b>' +
+    (calNow2 ? ' · <b>sonda ✓</b>' : ' · stima');
 }
 
 $('#btnMore').addEventListener('click', () => {
@@ -729,38 +737,117 @@ $('#placeSearch').addEventListener('submit', (e) => {
   });
 });
 
-/* ---------- Calibrazione automatica della scala ----------
-   Mentre l'utente trascina il panorama, confrontiamo i pixel percorsi dal dito con i gradi
-   che Street View ha effettivamente ruotato: da lì ricaviamo il campo visivo reale del
-   dispositivo, senza doverlo indovinare. */
-(function setupAutoCalibration() {
-  let drag = null;
-  const wrap = document.getElementById('panoWrap');
+/* ---------- Calibrazione con marker-sonda ----------
+   La verità sulla proiezione ce l'ha solo il renderer di Google. Quindi gliela chiediamo:
+   due marker trasparenti agganciati al panorama, disegnati DA GOOGLE con la sua proiezione.
+   Leggiamo dove finiscono sullo schermo e ricaviamo la focale reale con un least-squares.
+   Funziona su qualsiasi dispositivo, zoom e orientamento, senza formule indovinate. */
+const PROBE_DIST = 400; // metri: abbastanza lontano da stare vicino all'orizzonte
+const PROBE_CAM_H = 2.5; // altezza tipica della camera di Street View
+const probes = []; // { marker, azOff, id }
 
-  wrap.addEventListener('pointerdown', (e) => {
-    if (!pano) return;
-    const pov = pano.getPov();
-    if (!pov || !Number.isFinite(pov.pitch)) return;
-    drag = { y: e.clientY, pitch: pov.pitch, zoom: pano.getZoom() };
-  }, true);
+function probeIcon(id) {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" data-escal="' + id + '"><rect width="10" height="10" fill="black" fill-opacity="0.004"/></svg>';
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) + '#escal-' + id;
+}
+function ensureProbes() {
+  if (probes.length || !window.google || !google.maps.geometry) return;
+  ['a', 'b'].forEach((id, i) => {
+    probes.push({
+      id, azOff: i === 0 ? -13 : 13,
+      marker: new google.maps.Marker({
+        map: pano, clickable: false, optimized: false, zIndex: 1,
+        icon: { url: probeIcon(id), scaledSize: new google.maps.Size(10, 10), anchor: new google.maps.Point(5, 5) },
+      }),
+    });
+  });
+}
+function placeProbes() {
+  const pos = getPos();
+  if (!pos || !probes.length) return;
+  const cam = getCam();
+  const origin = new google.maps.LatLng(pos.lat, pos.lng);
+  for (const p of probes) {
+    p.marker.setPosition(google.maps.geometry.spherical.computeOffset(origin, PROBE_DIST, cam.heading + p.azOff));
+  }
+}
+function findProbeImg(id) {
+  const imgs = document.getElementById('pano').querySelectorAll('img');
+  for (const img of imgs) if (img.src && img.src.indexOf('escal-' + id) !== -1) return img;
+  return null;
+}
+/* Stato di calibrazione nativa: focale + offset del centro (assorbe anche piccoli
+   difetti di livellamento del singolo panorama). Valido solo se fresco. */
+const calState = { f: null, cx: 0, cy: 0, ts: 0, lastRawF: null };
+function activeCal() {
+  return (Number.isFinite(calState.f) && performance.now() - calState.ts < 8000) ? calState : null;
+}
 
-  wrap.addEventListener('pointermove', (e) => {
-    if (!drag || !pano) return;
-    const dy = e.clientY - drag.y;
-    if (Math.abs(dy) < 60) return; // gesto troppo corto per una misura pulita
-    const pov = pano.getPov();
-    if (!pov || !Number.isFinite(pov.pitch)) return;
-    const dTan = Math.tan(pov.pitch * D2R) - Math.tan(drag.pitch * D2R);
-    if (Math.abs(dTan) > 0.02) {
-      saveFocalMeasurement(drag.zoom, Math.abs(dy / dTan), window.innerWidth, window.innerHeight);
+let lastProbeTs = 0;
+function measureFromProbes() {
+  const now = performance.now();
+  if (now - lastProbeTs < 400) return;
+  lastProbeTs = now;
+  const pos = getPos();
+  if (!pos || !probes.length || !pano.getDiv) return;
+  const cam = getCam();
+  const pr = pano.getDiv().getBoundingClientRect();
+  if (pr.width < 50 || pr.height < 50) return;
+  const cxScreen = pr.left + pr.width / 2, cyScreen = pr.top + pr.height / 2;
+  const origin = new google.maps.LatLng(pos.lat, pos.lng);
+  const pts = [];
+  for (const p of probes) {
+    const img = findProbeImg(p.id);
+    if (!img) continue;
+    const r = img.getBoundingClientRect();
+    if (r.width === 0) continue;
+    const mpos = p.marker.getPosition();
+    if (!mpos) continue;
+    const ox = r.left + r.width / 2 - cxScreen;
+    const oy = r.top + r.height / 2 - cyScreen;
+    // direzione REALE del marker (da dove sta davvero, non da dove l'abbiamo chiesto)
+    const azDeg = google.maps.geometry.spherical.computeHeading(origin, mpos);
+    const dist = Math.max(20, google.maps.geometry.spherical.computeDistanceBetween(origin, mpos));
+    const az = azDeg * D2R, al = -Math.atan(PROBE_CAM_H / dist);
+    const v = [Math.cos(al) * Math.sin(az), Math.cos(al) * Math.cos(az), Math.sin(al)];
+    const hd = cam.heading * D2R, pt = cam.pitch * D2R;
+    const fwd = [Math.sin(hd) * Math.cos(pt), Math.cos(hd) * Math.cos(pt), Math.sin(pt)];
+    const right = [Math.cos(hd), -Math.sin(hd), 0];
+    const up = [-Math.sin(hd) * Math.sin(pt), -Math.cos(hd) * Math.sin(pt), Math.cos(pt)];
+    const d = v[0]*fwd[0] + v[1]*fwd[1] + v[2]*fwd[2];
+    if (d <= 0.1) continue;
+    pts.push({
+      ox, oy,
+      u: (v[0]*right[0] + v[1]*right[1] + v[2]*right[2]) / d,
+      vv: -((v[0]*up[0] + v[1]*up[1] + v[2]*up[2]) / d),
+    });
+  }
+  if (pts.length >= 2) {
+    pts.sort((a, b) => a.u - b.u);
+    const A = pts[0], B = pts[pts.length - 1];
+    if (Math.abs(B.u - A.u) > 1e-3) {
+      const f = (B.ox - A.ox) / (B.u - A.u);
+      if (Number.isFinite(f) && f > 50 && f < 20000) {
+        // accetta solo se due misure consecutive concordano (durante le animazioni di zoom
+        // il renderer è a metà strada e le misure sono inaffidabili)
+        if (calState.lastRawF && Math.abs(f / calState.lastRawF - 1) < 0.03) {
+          const cx = (A.ox - f * A.u + B.ox - f * B.u) / 2;
+          const cy = (A.oy - f * A.vv + B.oy - f * B.vv) / 2;
+          if (Number.isFinite(cx) && Number.isFinite(cy) && Math.abs(cx) < 500 && Math.abs(cy) < 500) {
+            const w0 = Number.isFinite(calState.f) ? 0.5 : 1;
+            calState.f = Number.isFinite(calState.f) ? calState.f * (1 - w0) + f * w0 : f;
+            calState.cx = calState.cx * (1 - w0) + cx * w0;
+            calState.cy = calState.cy * (1 - w0) + cy * w0;
+            calState.ts = now;
+            saveFocalMeasurement(cam.zoom, f, pr.width, pr.height); // fallback grezzo per il prossimo avvio
+          }
+        }
+        calState.lastRawF = f;
+      }
     }
-    drag = { y: e.clientY, pitch: pov.pitch, zoom: pano.getZoom() };
-  }, true);
-
-  const end = () => { drag = null; };
-  wrap.addEventListener('pointerup', end, true);
-  wrap.addEventListener('pointercancel', end, true);
-})();
+  }
+  placeProbes(); // riportali vicino al centro vista per la prossima misura
+}
 
 /* punta verso il sole */
 $('#btnSun').addEventListener('click', () => {
@@ -793,7 +880,10 @@ function initApp() {
     openStreetViewAt(ev.latLng, { radius: 120, userInitiated: true });
   });
 
+  ensureProbes();
+  placeProbes();
   ['pov_changed', 'zoom_changed', 'pano_changed', 'position_changed', 'visible_changed'].forEach((ev) => pano.addListener(ev, render));
+  pano.addListener('position_changed', placeProbes);
   pano.addListener('position_changed', () => {
     const p = getPos();
     if (p && marker) {
@@ -810,6 +900,6 @@ function initApp() {
 }
 window.initApp = initApp;
 </script>
-<script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBcnYkcvoYx5I5qQZb1oRaUTy_VmMb2DNU&callback=initApp&v=weekly&language=it&region=IT"></script>
+<script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBcnYkcvoYx5I5qQZb1oRaUTy_VmMb2DNU&callback=initApp&v=quarterly&language=it&region=IT&libraries=geometry"></script>
 </body>
 </html>
