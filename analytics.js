@@ -158,10 +158,13 @@
 
   function mixpanelConfig() {
     return {
+      api_host: 'https://api-eu.mixpanel.com',
       autocapture: false,
       debug: false,
       flags: false,
-      ignore_dnt: false,
+      // Il progetto è ospitato nel data residency cluster UE. Dopo un consenso
+      // esplicito la scelta dell'utente prevale sul segnale DNT del browser.
+      ignore_dnt: true,
       ip: false,
       opt_out_persistence_by_default: true,
       opt_out_tracking_by_default: true,

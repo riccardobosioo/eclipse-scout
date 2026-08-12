@@ -9,6 +9,7 @@ This project uses **Mixpanel** as the only product analytics system. Read this f
 | Platform | Static HTML/CSS/JavaScript website |
 | Mixpanel SDK | JavaScript Browser SDK loaded from the official CDN |
 | SDK version | `mixpanel-2-latest.min.js` |
+| Data residency | EU — `https://api-eu.mixpanel.com` |
 | Tracking method | Direct client-side, through `window.EclipseAnalytics` |
 | CDP | None |
 | Consent required | Yes — explicit opt-in before the SDK is downloaded |
