@@ -753,6 +753,9 @@ function probeIcon(id) {
 }
 function ensureProbes() {
   if (probes.length || !window.google || !google.maps.geometry) return;
+  // MAI creare marker prima che il panorama sia caricato: rompe il layer marker
+  // per l'intera sessione (verificato empiricamente) e nessun marker renderizza più.
+  if (!pano || !pano.getPano || !pano.getPano() || (pano.getStatus && pano.getStatus() !== 'OK')) return;
   ['a', 'b'].forEach((id, i) => {
     probes.push({
       id, azOff: i === 0 ? -13 : 13,
@@ -882,8 +885,9 @@ function initApp() {
     openStreetViewAt(ev.latLng, { radius: 120, userInitiated: true });
   });
 
-  ensureProbes();
-  placeProbes();
+  pano.addListener('status_changed', () => {
+    if (pano.getStatus() === 'OK') { ensureProbes(); placeProbes(); }
+  });
   ['pov_changed', 'zoom_changed', 'pano_changed', 'position_changed', 'visible_changed'].forEach((ev) => pano.addListener(ev, render));
   pano.addListener('position_changed', placeProbes);
   pano.addListener('position_changed', () => {
