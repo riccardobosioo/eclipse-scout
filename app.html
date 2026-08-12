@@ -742,13 +742,14 @@ $('#placeSearch').addEventListener('submit', (e) => {
    due marker trasparenti agganciati al panorama, disegnati DA GOOGLE con la sua proiezione.
    Leggiamo dove finiscono sullo schermo e ricaviamo la focale reale con un least-squares.
    Funziona su qualsiasi dispositivo, zoom e orientamento, senza formule indovinate. */
-const PROBE_DIST = 400; // metri: abbastanza lontano da stare vicino all'orizzonte
+const PROBE_DIST = 80; // metri: i marker su SV vengono scalati (e scartati) con la distanza
 const PROBE_CAM_H = 2.5; // altezza tipica della camera di Street View
 const probes = []; // { marker, azOff, id }
 
 function probeIcon(id) {
-  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" data-escal="' + id + '"><rect width="10" height="10" fill="black" fill-opacity="0.004"/></svg>';
-  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg) + '#escal-' + id;
+  // niente fragment sul data URI: rompe il caricamento dell'icona. L'id vive nell'SVG.
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" data-escal="' + id + '"><rect width="24" height="24" fill="black" fill-opacity="0.004"/></svg>';
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
 }
 function ensureProbes() {
   if (probes.length || !window.google || !google.maps.geometry) return;
@@ -757,7 +758,7 @@ function ensureProbes() {
       id, azOff: i === 0 ? -13 : 13,
       marker: new google.maps.Marker({
         map: pano, clickable: false, optimized: false, zIndex: 1,
-        icon: { url: probeIcon(id), scaledSize: new google.maps.Size(10, 10), anchor: new google.maps.Point(5, 5) },
+        icon: { url: probeIcon(id), scaledSize: new google.maps.Size(24, 24), anchor: new google.maps.Point(12, 12) },
       }),
     });
   });
@@ -772,8 +773,9 @@ function placeProbes() {
   }
 }
 function findProbeImg(id) {
+  const needle = 'escal%3D%22' + id; // data-escal="id" dentro l'URI encodato
   const imgs = document.getElementById('pano').querySelectorAll('img');
-  for (const img of imgs) if (img.src && img.src.indexOf('escal-' + id) !== -1) return img;
+  for (const img of imgs) if (img.src && img.src.indexOf(needle) !== -1) return img;
   return null;
 }
 /* Stato di calibrazione nativa: focale + offset del centro (assorbe anche piccoli
