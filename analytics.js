@@ -32,6 +32,24 @@
   let pendingEvents = [];
   let consentPanel = null;
 
+  const enums = Object.freeze({
+    action: ['update_eclipse', 'initialize', 'load_script'],
+    artifact_type: ['chrome_extension_zip'],
+    component: ['astronomy', 'google_maps'],
+    destination: ['web_app'],
+    eclipse_kind: ['total', 'partial', 'annular', 'none'],
+    eclipse_phase: ['totality', 'partial', 'none'],
+    entry_method: ['primary_cta'],
+    error_code: ['astronomy_search_failed', 'maps_auth_failed', 'maps_script_load_failed'],
+    failure_reason: ['not_found', 'permission_or_quota', 'temporary_failure', 'invalid_request', 'service_unavailable', 'unknown_failure'],
+    latency_bucket: ['under_300ms', '300_999ms', '1_3s', 'over_3s'],
+    playback_action: ['started', 'stopped'],
+    preset_name: ['partial_begin', 'totality_begin', 'maximum', 'partial_end'],
+    query_length_bucket: ['empty', '1_10', '11_30', '31_60', 'over_60'],
+    result_status: ['empty_query', 'result_found', 'not_found', 'permission_or_quota', 'temporary_failure', 'invalid_request', 'service_unavailable', 'unknown_failure'],
+    selection_method: ['map', 'search', 'slider', 'preset', 'playback'],
+  });
+
   function readConsent() {
     try {
       const value = window.localStorage.getItem(CONSENT_KEY);
@@ -68,10 +86,24 @@
     };
   }
 
-  function safeValue(value) {
-    if (typeof value === 'boolean') return value;
-    if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
-    if (typeof value === 'string') return value.trim() ? value.trim().slice(0, 64) : undefined;
+  function safeValue(name, value) {
+    if (name === 'is_aligned' || name === 'is_successful') {
+      return typeof value === 'boolean' ? value : undefined;
+    }
+    if (Object.prototype.hasOwnProperty.call(enums, name)) {
+      return typeof value === 'string' && enums[name].indexOf(value) !== -1 ? value : undefined;
+    }
+    const ranges = {
+      camera_pitch_degrees: [-90, 90, 1],
+      camera_zoom: [0, 5, 2],
+      horizontal_fov_degrees: [1, 180, 1],
+      obscuration_percent: [0, 100, 0],
+      sun_altitude_degrees: [-90, 90, 1],
+    };
+    if (Object.prototype.hasOwnProperty.call(ranges, name) && typeof value === 'number' && Number.isFinite(value)) {
+      const rule = ranges[name];
+      return round(Math.max(rule[0], Math.min(rule[1], value)), rule[2]);
+    }
     return undefined;
   }
 
@@ -80,7 +112,7 @@
     const allowed = allowedProperties[eventName] || [];
     const source = properties && typeof properties === 'object' ? properties : {};
     allowed.forEach((name) => {
-      const value = safeValue(source[name]);
+      const value = safeValue(name, source[name]);
       if (value !== undefined) clean[name] = value;
     });
     return Object.assign(clean, commonProperties());
@@ -104,18 +136,28 @@
     track(surface === 'app' ? 'app_opened' : 'landing_viewed');
   }
 
-  function initializeSdk() {
+  function activateSdk(instance) {
     if (consent !== 'granted') {
       sdkState = 'idle';
       pendingEvents = [];
+      if (instance && typeof instance.opt_out_tracking === 'function') {
+        instance.opt_out_tracking({ clear_persistence: true, delete_user: false });
+      }
       return;
     }
-    if (!window.mixpanel || typeof window.mixpanel.init !== 'function') {
-      sdkState = 'failed';
+    if (!instance || !instance.__loaded) {
+      sdkState = 'idle';
       return;
     }
+    instance.opt_in_tracking({ track: function () {} });
+    instance.register({ platform: 'web', surface: surface, app_version: appVersion });
+    sdkState = 'ready';
+    trackPageOpen();
+    flushEvents();
+  }
 
-    window.mixpanel.init(TOKEN, {
+  function mixpanelConfig() {
+    return {
       autocapture: false,
       debug: false,
       flags: false,
@@ -137,28 +179,51 @@
       store_google: false,
       track_marketing: false,
       track_pageview: false,
-    });
-    window.mixpanel.opt_in_tracking({ track: function () {} });
-    window.mixpanel.register({ platform: 'web', surface: surface, app_version: appVersion });
-    sdkState = 'ready';
-    flushEvents();
-    trackPageOpen();
+      loaded: activateSdk,
+    };
+  }
+
+  function installMixpanelStub() {
+    if (window.mixpanel && window.mixpanel.__SV) return;
+    const stub = window.mixpanel = window.mixpanel || [];
+    stub._i = [];
+    stub.init = function (token, config, name) {
+      function stubMethod(target, method) {
+        const parts = method.split('.');
+        if (parts.length === 2) { target = target[parts[0]]; method = parts[1]; }
+        target[method] = function () { target.push([method].concat(Array.prototype.slice.call(arguments))); };
+      }
+      let instance = stub;
+      if (name !== undefined) instance = stub[name] = [];
+      else name = 'mixpanel';
+      instance.people = instance.people || [];
+      instance.toString = function (people) { return 'mixpanel' + (name === 'mixpanel' ? '' : '.' + name) + (people ? '.people' : ''); };
+      instance.people.toString = function () { return instance.toString(true); };
+      const methods = 'disable time_event track track_pageview track_links track_forms track_with_groups add_group set_group remove_group register register_once alias unregister identify name_tag set_config reset opt_in_tracking opt_out_tracking has_opted_in_tracking has_opted_out_tracking clear_opt_in_out_tracking start_batch_senders'.split(' ');
+      methods.forEach(function (method) { stubMethod(instance, method); });
+      'set set_once union unset remove delete'.split(' ').forEach(function (method) { stubMethod(instance, 'people.' + method); });
+      stub._i.push([token, config, name]);
+    };
+    stub.__SV = 1.2;
   }
 
   function loadSdk() {
     if (!isProduction || consent !== 'granted' || sdkState !== 'idle') return;
     sdkState = 'loading';
-    if (window.mixpanel && typeof window.mixpanel.init === 'function') {
-      initializeSdk();
+    if (window.mixpanel && window.mixpanel.__loaded) {
+      activateSdk(window.mixpanel);
       return;
     }
+    installMixpanelStub();
+    window.mixpanel.init(TOKEN, mixpanelConfig());
     const sdk = document.createElement('script');
     sdk.async = true;
     sdk.src = SDK_URL;
-    sdk.onload = initializeSdk;
     sdk.onerror = function () {
-      sdkState = 'failed';
+      sdkState = 'idle';
       pendingEvents = [];
+      try { delete window.mixpanel; } catch (error) { window.mixpanel = undefined; }
+      sdk.remove();
     };
     (document.head || document.documentElement).appendChild(sdk);
   }

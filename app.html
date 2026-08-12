@@ -338,7 +338,7 @@ function phaseAt(date, lat, lng) {
 }
 
 /* ---------- Street View ---------- */
-let map, pano, svService, marker, geocoder, savePositionTimer;
+let map, pano, svService, marker, geocoder, savePositionTimer, latestStreetViewRequest = 0;
 const canvas = $('#overlay'), ctx = canvas.getContext('2d');
 
 const getPos = () => { const p = pano && pano.getPosition(); return p ? { lat: p.lat(), lng: p.lng() } : null; };
@@ -729,6 +729,7 @@ addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#sheet').class
 
 function openStreetViewAt(location, options) {
   const opts = Object.assign({ radius: 160, userInitiated: false, label: '', selectionMethod: 'map' }, options);
+  const requestId = ++latestStreetViewRequest;
   if (!svService) {
     if (opts.userInitiated) {
       trackAnalytics('viewpoint_load_failed', {
@@ -740,18 +741,13 @@ function openStreetViewAt(location, options) {
   }
   if (opts.userInitiated) setSearchStatus('Cerco lo Street View più vicino…');
   svService.getPanorama({ location, radius: opts.radius, source: 'outdoor' }, (data, status) => {
+    if (requestId !== latestStreetViewRequest) return;
     if (status === 'OK') {
       const actual = data.location.latLng;
-      pano.setPano(data.location.pano);
-      pano.setVisible(true);
-      marker.setPosition(actual);
-      map.setCenter(actual);
-      if ((map.getZoom() || 0) < 16) map.setZoom(16);
       const p = { lat: actual.lat(), lng: actual.lng() };
-      const sun = sunPos(state.date, p.lat, p.lng);
-      pano.setPov({ heading: sun.az, pitch: Math.max(-10, Math.min(30, sun.alt + 4)) });
-      savePosition(p);
-      if (opts.userInitiated) {
+      const previousPano = pano.getPano();
+      const emitLoaded = () => {
+        if (!opts.userInitiated || requestId !== latestStreetViewRequest) return;
         updateLocalEclipse(p.lat, p.lng);
         const ph = phaseAt(state.date, p.lat, p.lng);
         trackAnalytics('viewpoint_loaded', {
@@ -762,6 +758,20 @@ function openStreetViewAt(location, options) {
           sun_altitude_degrees: roundMetric(ph.s.alt, 1),
         });
         resetOverlayFeedback();
+      };
+      if (opts.userInitiated && previousPano !== data.location.pano) {
+        google.maps.event.addListenerOnce(pano, 'pano_changed', emitLoaded);
+      }
+      pano.setPano(data.location.pano);
+      pano.setVisible(true);
+      marker.setPosition(actual);
+      map.setCenter(actual);
+      if ((map.getZoom() || 0) < 16) map.setZoom(16);
+      const sun = sunPos(state.date, p.lat, p.lng);
+      pano.setPov({ heading: sun.az, pitch: Math.max(-10, Math.min(30, sun.alt + 4)) });
+      savePosition(p);
+      if (opts.userInitiated) {
+        if (previousPano === data.location.pano) emitLoaded();
         dismissMapCoach();
         setSearchStatus(opts.label ? 'Apro Street View vicino a ' + opts.label : 'Street View trovato.');
         openSheet(false);
