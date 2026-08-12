@@ -38,9 +38,12 @@ All names and properties use `snake_case`. Common properties are `platform`, `su
 | `map_opened` | Primary landing CTA is clicked | `entry_method`, `destination` | `index.html` |
 | `extension_downloaded` | Extension ZIP link is clicked | `artifact_type` | `index.html` |
 | `app_opened` | App becomes trackable after consent | common only | `analytics.js` |
+| `ar_opened` | Camera AR page becomes trackable after consent | common only | `analytics.js` |
+| `ar_start_completed` | AR permission/start sequence completes | `is_successful`, stable `result_status`; never sensor values or raw errors | `ar.js` |
 | `viewpoint_loaded` | User-selected Street View succeeds | `selection_method`, `eclipse_kind`, `eclipse_phase`, `obscuration_percent`, `sun_altitude_degrees` | `app.html` |
 | `viewpoint_load_failed` | User-selected Street View fails | `selection_method`, `failure_reason` | `app.html` |
 | `place_search_completed` | Search validation/geocoding completes | `is_successful`, `result_status`, `query_length_bucket`, `latency_bucket` | `app.html` |
+| `device_location_completed` | “Usa la mia posizione” completes | `is_successful`, `result_status`, `accuracy_bucket`, `latency_bucket`; never coordinates | `app.html` |
 | `sun_view_centered` | “Guarda verso il sole” is used | safe camera/solar metrics; never heading | `app.html` |
 | `eclipse_time_selected` | Slider, preset or playback is used | `selection_method`, `preset_name`, `playback_action` | `app.html` |
 | `overlay_feedback_submitted` | User answers whether the overlay is aligned | `is_aligned` plus safe camera/solar metrics | `app.html` |

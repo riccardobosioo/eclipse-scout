@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Eclipse Scout — mappa</title>
-<script src="analytics.js?v=20260812-3" data-surface="app" data-app-version="2026.08.12.3"></script>
+<title data-i18n="app.title">Eclipse Scout — mappa</title>
+<script src="i18n.js?v=20260812-1"></script>
+<script src="analytics.js?v=20260812-4" data-surface="app" data-app-version="2026.08.12.4"></script>
 <style>
   :root {
     --void: #06070c; --night: rgba(14,17,25,.94); --raise: #1a2030; --edge: rgba(255,255,255,.14);
@@ -148,6 +149,16 @@
   .search-row button:hover { background: #ffb347; }
   .search-row button:disabled { opacity: .6; cursor: wait; }
   .search-row svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; }
+  .location-button {
+    width: 100%; min-height: 44px; margin-top: 8px; padding: 0 13px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    border: 1px solid rgba(255,162,39,.58); border-radius: 10px;
+    background: rgba(255,162,39,.11); color: #ffd49a; cursor: pointer;
+    font: 700 13px/1 var(--sans); touch-action: manipulation;
+  }
+  .location-button:hover { background: rgba(255,162,39,.2); }
+  .location-button:disabled { opacity: .6; cursor: wait; }
+  .location-button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   #searchStatus { min-height: 15px; margin: 6px 1px 0; color: var(--dim); font: 500 11px/1.35 var(--sans); }
   #searchStatus.error { color: #ff9d9d; }
   #mapArea { position: relative; flex: 1; min-height: 180px; overflow: hidden; }
@@ -196,48 +207,48 @@
 <div id="panoWrap"><div id="pano" aria-label="Street View"></div></div>
 <canvas id="overlay"></canvas>
 
-<div id="status"><span class="dot"></span><span id="statusText">caricamento…</span></div>
+<div id="status"><span class="dot"></span><span id="statusText" data-i18n="app.loading">caricamento…</span></div>
 
 <div class="fabs">
-  <button class="fab" id="btnMap" aria-pressed="false" aria-label="Scegli il punto sulla mappa" title="Scegli il punto sulla mappa">
+  <button class="fab" id="btnMap" aria-pressed="false" data-i18n-aria-label="app.map_button" data-i18n-title="app.map_button" aria-label="Scegli il punto sulla mappa" title="Scegli il punto sulla mappa">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 5-2 8 3 5-2v13l-5 2-8-3-5 2Z"/><path d="M8 4v13M16 7v13"/></svg>
   </button>
-  <button class="fab" id="btnSun" aria-label="Guarda verso il sole" title="Guarda verso il sole">
+  <button class="fab" id="btnSun" data-i18n-aria-label="app.sun_button" data-i18n-title="app.sun_button" aria-label="Guarda verso il sole" title="Guarda verso il sole">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
   </button>
-  <a class="fab" id="btnCamera" href="ar.html" aria-label="Apri la fotocamera AR" title="Apri la fotocamera AR">
+  <a class="fab" id="btnCamera" href="ar.html" data-i18n-aria-label="app.camera_button" data-i18n-title="app.camera_button" aria-label="Apri la fotocamera AR" title="Apri la fotocamera AR">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 13 3h-2L9.5 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="4"/></svg>
   </a>
 </div>
 
-<div id="hint" role="status">Apri la mappa: scegli un punto o cerca un luogo</div>
+<div id="hint" role="status" data-i18n="app.hint_initial">Apri la mappa: scegli un punto o cerca un luogo</div>
 
 <div id="dock">
   <button class="place-pill" id="btnPlace" type="button">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 5-2 8 3 5-2v13l-5 2-8-3-5 2Z"/><path d="M8 4v13M16 7v13"/></svg>
-    <span>Cambia posizione</span>
+    <span data-i18n="app.change_position">Cambia posizione</span>
   </button>
   <div class="timerow">
-    <div class="clock"><span id="clock">20:29</span><span class="date">12 ago 2026</span></div>
-    <div class="cover" id="cover"><span>sole coperto</span>—</div>
+    <div class="clock"><span id="clock">20:29</span><span class="date" data-i18n="app.date">12 ago 2026</span></div>
+    <div class="cover" id="cover"><span data-i18n="app.cover_label">sole coperto</span>—</div>
   </div>
-  <input type="range" id="slider" min="1140" max="1320" step="1" aria-label="Ora del giorno">
+  <input type="range" id="slider" min="1140" max="1320" step="1" data-i18n-aria-label="app.time_aria" aria-label="Ora del giorno">
   <div class="presets" id="presets"></div>
-  <button class="more" id="btnMore">dettagli +</button>
+  <button class="more" id="btnMore" data-i18n="app.details_open">dettagli +</button>
   <div id="details">
     <div id="readout"></div>
     <div class="toggles">
-      <label><input type="checkbox" id="tpath" checked> traiettoria</label>
-      <label><input type="checkbox" id="tmoon" checked> luna</label>
-      <label><input type="checkbox" id="tday"> tutto il giorno</label>
+      <label><input type="checkbox" id="tpath" checked> <span data-i18n="app.trajectory">traiettoria</span></label>
+      <label><input type="checkbox" id="tmoon" checked> <span data-i18n="app.moon">luna</span></label>
+      <label><input type="checkbox" id="tday"> <span data-i18n="app.whole_day">tutto il giorno</span></label>
     </div>
     <div class="overlay-feedback" id="overlayFeedback" hidden>
-      <span>Il sole è allineato?</span>
-      <button type="button" data-aligned="true" aria-pressed="false">Sì</button>
-      <button type="button" data-aligned="false" aria-pressed="false">No</button>
+      <span data-i18n="app.feedback_question">Il sole è allineato?</span>
+      <button type="button" data-aligned="true" aria-pressed="false" data-i18n="app.yes">Sì</button>
+      <button type="button" data-aligned="false" aria-pressed="false" data-i18n="app.no">No</button>
       <span id="feedbackThanks" role="status"></span>
     </div>
-    <button class="privacy-link" type="button" data-analytics-preferences>Preferenze analytics</button>
+    <button class="privacy-link" type="button" data-analytics-preferences data-i18n="common.analytics_preferences">Preferenze analytics</button>
   </div>
 </div>
 
@@ -245,29 +256,33 @@
 <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" aria-hidden="true">
   <div class="hd">
     <div>
-      <h2 id="sheetTitle">Scegli il punto</h2>
-      <p>Tocca la mappa: ti porto lì in Street View</p>
+      <h2 id="sheetTitle" data-i18n="app.sheet_title">Scegli il punto</h2>
+      <p data-i18n="app.sheet_subtitle">Tocca la mappa: ti porto lì in Street View</p>
     </div>
-    <button class="close" id="btnClose" aria-label="Chiudi">✕</button>
+    <button class="close" id="btnClose" data-i18n-aria-label="app.close" aria-label="Chiudi">✕</button>
   </div>
   <form class="place-search" id="placeSearch" role="search">
-    <label class="sr-only" for="placeQuery">Cerca un luogo o un indirizzo</label>
+    <label class="sr-only" for="placeQuery" data-i18n="app.search_label">Cerca un luogo o un indirizzo</label>
     <div class="search-row">
-      <input id="placeQuery" type="search" placeholder="Cerca luogo o indirizzo" autocomplete="off" enterkeyhint="search">
+      <input id="placeQuery" type="search" data-i18n-placeholder="app.search_placeholder" placeholder="Cerca luogo o indirizzo" autocomplete="off" enterkeyhint="search">
       <button id="btnSearch" type="submit">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-        <span>Cerca</span>
+        <span data-i18n="app.search_button">Cerca</span>
       </button>
     </div>
-    <p id="searchStatus" role="status" aria-live="polite">Una ricerca parte solo quando premi Cerca.</p>
+    <button class="location-button" id="btnLocate" type="button" aria-describedby="searchStatus">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      <span data-i18n="app.locate_button">Usa la mia posizione</span>
+    </button>
+    <p id="searchStatus" role="status" aria-live="polite" data-i18n="app.search_initial">Una ricerca parte solo quando premi Cerca.</p>
   </form>
   <div id="mapArea">
     <div id="map"></div>
     <div id="mapCoach" hidden>
       <div class="coach-card">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11Z"/><circle cx="12" cy="10" r="2"/></svg>
-        <p>Tocca un punto sulla mappa<span>Apriremo lo Street View più vicino.</span></p>
-        <button id="btnCoachDone" type="button">Ho capito</button>
+        <p><span data-i18n="app.coach_title">Tocca un punto sulla mappa</span><span data-i18n="app.coach_subtitle">Apriremo lo Street View più vicino.</span></p>
+        <button id="btnCoachDone" type="button" data-i18n="app.coach_done">Ho capito</button>
       </div>
     </div>
   </div>
@@ -278,6 +293,9 @@
 'use strict';
 const D2R = Math.PI / 180, R2D = 180 / Math.PI, AU_KM = 1.496e8;
 const $ = (s) => document.querySelector(s);
+const I18N = window.EclipseI18n;
+const t = (key, variables) => I18N.t(key, variables);
+const fmtN = (value, digits) => I18N.formatNumber(value, digits);
 const ZARAGOZA_START = { lat: 41.65704, lng: -0.87759 };
 const STORAGE = {
   position: 'eclipseScout:lastPosition:v1',
@@ -302,7 +320,7 @@ function savePosition(p) {
 }
 
 const state = {
-  date: new Date(2026, 7, 12, 20, 29, 40),
+  date: new Date('2026-08-12T20:29:40+02:00'),
   showPath: true, showMoon: true, wholeDay: false, playing: false,
   eclipse: null, eclipseKey: '', pathCache: { key: '', pts: [] },
 };
@@ -427,11 +445,27 @@ function label(text, x, y, color, size) {
   ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(0,0,0,.75)'; ctx.strokeText(text, x, y);
   ctx.fillStyle = color || '#f3f1ea'; ctx.fillText(text, x, y);
 }
-const fmtT = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+function madridParts(date) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(date);
+  return {
+    hour: Number(parts.find((part) => part.type === 'hour').value),
+    minute: Number(parts.find((part) => part.type === 'minute').value),
+  };
+}
+const fmtT = (date) => new Intl.DateTimeFormat(I18N.locale, {
+  timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit', hour12: false,
+}).format(date);
+function dateAtMadridMinutes(minutes, seconds) {
+  const hour = String(Math.floor(minutes / 60)).padStart(2, '0');
+  const minute = String(minutes % 60).padStart(2, '0');
+  return new Date('2026-08-12T' + hour + ':' + minute + ':' + String(seconds || 0).padStart(2, '0') + '+02:00');
+}
 
 function getDayPath(lat, lng) {
-  const day = new Date(state.date); day.setHours(0, 0, 0, 0);
-  const key = day.toDateString() + '|' + lat.toFixed(3) + ',' + lng.toFixed(3);
+  const day = dateAtMadridMinutes(0, 0);
+  const key = '2026-08-12|' + lat.toFixed(3) + ',' + lng.toFixed(3);
   if (state.pathCache.key === key) return state.pathCache.pts;
   const pts = [];
   for (let min = 0; min < 1440; min += 5) {
@@ -485,8 +519,9 @@ function render() {
 
   // traiettoria
   if (state.showPath) {
-    const day = new Date(state.date); day.setHours(0, 0, 0, 0);
-    const eclMin = state.eclipse ? (state.eclipse.peak.time.date.getHours() * 60 + state.eclipse.peak.time.date.getMinutes()) : null;
+    const day = dateAtMadridMinutes(0, 0);
+    const peakParts = state.eclipse ? madridParts(state.eclipse.peak.time.date) : null;
+    const eclMin = peakParts ? peakParts.hour * 60 + peakParts.minute : null;
     let prev = null;
     ctx.lineCap = 'round';
     for (const pt of getDayPath(pos.lat, pos.lng)) {
@@ -526,10 +561,10 @@ function render() {
     ctx.fillStyle = isTot ? '#08090f' : (ph.phase === 'partial' ? '#ffb347' : '#ffcf6b');
     ctx.beginPath(); ctx.arc(ps.x, ps.y, rs, 0, 7); ctx.fill();
     ctx.strokeStyle = isTot ? 'rgba(243,241,234,.95)' : 'rgba(255,255,255,.9)'; ctx.lineWidth = 2; ctx.stroke();
-    const tag = isTot ? 'TOTALITÀ' : (ph.frac > 0 ? Math.round(ph.frac * 100) + '%' : fmtT(state.date));
+    const tag = isTot ? t('app.totality') : (ph.frac > 0 ? Math.round(ph.frac * 100) + '%' : fmtT(state.date));
     label(tag, ps.x + rs + 8, ps.y - rs - 4, isTot ? '#ff8f8f' : '#ffcd8a', 13);
-    label(ph.s.alt.toFixed(1) + '° sull\'orizzonte', ps.x + rs + 8, ps.y - rs + 12, 'rgba(243,241,234,.8)', 11);
-    if (ph.s.alt < 0) label('sotto l\'orizzonte', ps.x + rs + 8, ps.y + rs + 4, '#ff8f8f', 11);
+    label(t('app.above_horizon', { alt: fmtN(ph.s.alt, 1) }), ps.x + rs + 8, ps.y - rs + 12, 'rgba(243,241,234,.8)', 11);
+    if (ph.s.alt < 0) label(t('app.below_horizon'), ps.x + rs + 8, ps.y + rs + 4, '#ff8f8f', 11);
   }
   if (state.showMoon && pm) {
     const rmRaw = f * Math.tan(ph.rm * D2R);
@@ -540,7 +575,7 @@ function render() {
   }
   if (!ps && ph.s.alt > -12) {
     const dAz = ((ph.s.az - cam.heading + 540) % 360) - 180;
-    const txt = dAz > 0 ? 'il sole è a destra →' : '← il sole è a sinistra';
+    const txt = dAz > 0 ? t('app.sun_right') : t('app.sun_left');
     ctx.font = '700 15px ' + getComputedStyle(document.body).fontFamily;
     const tw = ctx.measureText(txt).width;
     const bx = dAz > 0 ? w - tw - 26 : 26;
@@ -552,7 +587,8 @@ function render() {
 /* ---------- UI ---------- */
 const slider = $('#slider');
 function syncSlider() {
-  const mins = state.date.getHours() * 60 + state.date.getMinutes();
+  const parts = madridParts(state.date);
+  const mins = parts.hour * 60 + parts.minute;
   slider.value = mins;
   const pct = ((mins - slider.min) / (slider.max - slider.min)) * 100;
   slider.style.setProperty('--pct', pct + '%');
@@ -560,9 +596,7 @@ function syncSlider() {
 }
 function setDate(d) { state.date = d; syncSlider(); render(); }
 slider.addEventListener('input', () => {
-  const d = new Date(state.date);
-  d.setHours(Math.floor(slider.value / 60), slider.value % 60, 0, 0);
-  setDate(d);
+  setDate(dateAtMadridMinutes(Number(slider.value), 0));
 });
 slider.addEventListener('change', () => {
   trackAnalytics('eclipse_time_selected', { selection_method: 'slider' });
@@ -585,8 +619,9 @@ function updateLocalEclipse(lat, lng) {
   // lo slider copre la finestra dell'eclissi con un margine
   if (state.eclipse) {
     const b = state.eclipse.partial_begin.time.date, e = state.eclipse.partial_end.time.date;
-    slider.min = Math.max(0, b.getHours() * 60 + b.getMinutes() - 15);
-    slider.max = Math.min(1439, e.getHours() * 60 + e.getMinutes() + 15);
+    const beginParts = madridParts(b), endParts = madridParts(e);
+    slider.min = Math.max(0, beginParts.hour * 60 + beginParts.minute - 15);
+    slider.max = Math.min(1439, endParts.hour * 60 + endParts.minute + 15);
     syncSlider();
   }
 }
@@ -605,14 +640,14 @@ function buildPresets() {
     box.appendChild(b);
   };
   if (e) {
-    mk('inizio', fmtT(e.partial_begin.time.date), '', e.partial_begin.time.date, false, 'partial_begin');
-    if (e.kind === 'total' && e.total_begin) mk('totalità', fmtT(e.total_begin.time.date), 'peak', e.total_begin.time.date, true, 'totality_begin');
-    else mk('massimo', fmtT(e.peak.time.date), 'peak partial', e.peak.time.date, true, 'maximum');
-    mk('fine', fmtT(e.partial_end.time.date), '', e.partial_end.time.date, false, 'partial_end');
+    mk(t('app.preset_begin'), fmtT(e.partial_begin.time.date), '', e.partial_begin.time.date, false, 'partial_begin');
+    if (e.kind === 'total' && e.total_begin) mk(t('app.preset_totality'), fmtT(e.total_begin.time.date), 'peak', e.total_begin.time.date, true, 'totality_begin');
+    else mk(t('app.preset_maximum'), fmtT(e.peak.time.date), 'peak partial', e.peak.time.date, true, 'maximum');
+    mk(t('app.preset_end'), fmtT(e.partial_end.time.date), '', e.partial_end.time.date, false, 'partial_end');
   }
   const play = document.createElement('button');
   play.className = 'play'; play.textContent = state.playing ? '⏸' : '▶';
-  play.title = 'Anima il movimento';
+  play.title = t('app.play_title');
   play.addEventListener('click', togglePlay);
   box.appendChild(play);
 }
@@ -635,7 +670,7 @@ function togglePlay() {
 function updateUI(ph) {
   const cover = Math.round(ph.frac * 100);
   const cv = $('#cover');
-  cv.innerHTML = '<span>sole coperto</span>' + cover + '%';
+  cv.innerHTML = '<span>' + t('app.cover_label') + '</span>' + cover + '%';
   cv.classList.toggle('is-total', ph.phase === 'totality');
 
   const st = $('#status'), e = state.eclipse;
@@ -643,24 +678,23 @@ function updateUI(ph) {
   st.classList.toggle('is-out', !!e && e.kind !== 'total');
   if (e) {
     $('#statusText').innerHTML = e.kind === 'total'
-      ? 'Qui vedi la <b>totalità</b> · ' + fmtT(e.total_begin.time.date) + '–' + fmtT(e.total_end.time.date)
-      : 'Qui è parziale · max <b>' + Math.round(e.obscuration * 100) + '%</b>';
-  } else $('#statusText').textContent = 'nessuna eclissi in questo punto';
+      ? t('app.status_total', { begin: fmtT(e.total_begin.time.date), end: fmtT(e.total_end.time.date) })
+      : t('app.status_partial', { percent: Math.round(e.obscuration * 100) });
+  } else $('#statusText').textContent = t('app.status_none');
 
   const cam2 = pano ? getCam() : null;
   const fShown = cam2 ? focal(cam2, innerWidth, innerHeight) : null;
-  $('#readout').innerHTML =
-    'sole &nbsp;<b>' + ph.s.az.toFixed(1) + '°</b> az &nbsp;<b>' + ph.s.alt.toFixed(1) + '°</b> alt<br>' +
-    'luna &nbsp;<b>' + ph.m.az.toFixed(1) + '°</b> az &nbsp;<b>' + ph.m.alt.toFixed(1) + '°</b> alt<br>' +
-    'distanza sole-luna <b>' + ph.sep.toFixed(3) + '°</b><br>' +
-    'scala <b>f=' + (fShown ? Math.round(fShown) : '?') + '</b>' +
-    ' · zoom <b>' + (cam2 ? cam2.zoom.toFixed(2) : '?') + '</b>' +
-    ' · FOV orizzontale <b>' + (cam2 ? cam2.hfov.toFixed(1) + '°' : '?') + '</b>';
+  $('#readout').innerHTML = t('app.readout', {
+    sunAz: fmtN(ph.s.az, 1), sunAlt: fmtN(ph.s.alt, 1),
+    moonAz: fmtN(ph.m.az, 1), moonAlt: fmtN(ph.m.alt, 1),
+    separation: fmtN(ph.sep, 3), focal: fShown ? fmtN(Math.round(fShown), 0) : '?',
+    zoom: cam2 ? fmtN(cam2.zoom, 2) : '?', fov: cam2 ? fmtN(cam2.hfov, 1) + '°' : '?',
+  });
 }
 
 $('#btnMore').addEventListener('click', () => {
   const d = $('#details'), open = d.classList.toggle('open');
-  $('#btnMore').textContent = open ? 'dettagli –' : 'dettagli +';
+  $('#btnMore').textContent = t(open ? 'app.details_close' : 'app.details_open');
 });
 $('#tpath').addEventListener('change', (e) => { state.showPath = e.target.checked; render(); });
 $('#tmoon').addEventListener('change', (e) => { state.showMoon = e.target.checked; render(); });
@@ -685,7 +719,7 @@ document.querySelectorAll('#overlayFeedback [data-aligned]').forEach((button) =>
       item.disabled = true;
       item.setAttribute('aria-pressed', item === button ? 'true' : 'false');
     });
-    $('#feedbackThanks').textContent = 'Grazie';
+    $('#feedbackThanks').textContent = t('app.thanks');
   });
 });
 syncOverlayFeedbackVisibility();
@@ -695,6 +729,28 @@ function setSearchStatus(message, isError) {
   const el = $('#searchStatus');
   el.textContent = message;
   el.classList.toggle('error', !!isError);
+}
+function locationAccuracyBucket(accuracy) {
+  if (!Number.isFinite(accuracy) || accuracy < 0) return 'unknown';
+  if (accuracy < 20) return 'under_20m';
+  if (accuracy < 50) return '20_49m';
+  if (accuracy < 200) return '50_199m';
+  return '200m_or_more';
+}
+function locationFailureStatus(error) {
+  if (!error || !Number.isFinite(error.code)) return 'position_unavailable';
+  if (error.code === 1) return 'permission_denied';
+  if (error.code === 3) return 'timeout';
+  return 'position_unavailable';
+}
+function locationFailureMessage(status) {
+  if (status === 'permission_denied') return t('app.location_permission_denied');
+  if (status === 'timeout') return t('app.location_timeout');
+  if (status === 'insecure_context') return t('app.location_insecure');
+  if (status === 'unsupported') return t('app.location_unsupported');
+  if (status === 'maps_not_ready') return t('app.maps_not_ready');
+  if (status === 'invalid_position') return t('app.location_invalid');
+  return t('app.location_unavailable');
 }
 function showHint(message, duration) {
   const hint = $('#hint');
@@ -706,14 +762,22 @@ function dismissMapCoach() {
   $('#mapCoach').hidden = true;
   writeStorage(STORAGE.mapCoach, '1');
 }
-function openSheet(open) {
+let sheetReturnFocus = null;
+function openSheet(open, trigger, manageFocus) {
   const sheet = $('#sheet');
+  if (open && trigger) sheetReturnFocus = trigger;
   sheet.classList.toggle('open', open);
   sheet.setAttribute('aria-hidden', open ? 'false' : 'true');
   $('#scrim').classList.toggle('open', open);
   $('#btnMap').setAttribute('aria-pressed', open ? 'true' : 'false');
   $('#hint').classList.add('hide');
-  if (open) $('#mapCoach').hidden = readStorage(STORAGE.mapCoach) === '1';
+  if (open) {
+    $('#mapCoach').hidden = readStorage(STORAGE.mapCoach) === '1';
+    if (manageFocus !== false) setTimeout(() => $('#placeQuery').focus({ preventScroll: true }), 280);
+  } else if (manageFocus !== false) {
+    if (sheetReturnFocus && document.contains(sheetReturnFocus)) sheetReturnFocus.focus({ preventScroll: true });
+    sheetReturnFocus = null;
+  }
   if (open && map) setTimeout(() => {
     google.maps.event.trigger(map, 'resize');
     const p = getPos();
@@ -723,8 +787,8 @@ function openSheet(open) {
     }
   }, 280);
 }
-$('#btnMap').addEventListener('click', () => openSheet(!$('#sheet').classList.contains('open')));
-$('#btnPlace').addEventListener('click', () => openSheet(true));
+$('#btnMap').addEventListener('click', (event) => openSheet(!$('#sheet').classList.contains('open'), event.currentTarget));
+$('#btnPlace').addEventListener('click', (event) => openSheet(true, event.currentTarget));
 $('#btnClose').addEventListener('click', () => openSheet(false));
 $('#scrim').addEventListener('click', () => openSheet(false));
 $('#btnCoachDone').addEventListener('click', dismissMapCoach);
@@ -732,6 +796,7 @@ addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#sheet').class
 
 function openStreetViewAt(location, options) {
   const opts = Object.assign({ radius: 160, userInitiated: false, label: '', selectionMethod: 'map' }, options);
+  const complete = () => { if (typeof opts.onComplete === 'function') opts.onComplete(); };
   const requestId = ++latestStreetViewRequest;
   if (!svService) {
     if (opts.userInitiated) {
@@ -740,11 +805,12 @@ function openStreetViewAt(location, options) {
         failure_reason: 'service_unavailable',
       });
     }
+    complete();
     return;
   }
-  if (opts.userInitiated) setSearchStatus('Cerco lo Street View più vicino…');
+  if (opts.userInitiated) setSearchStatus(t('app.street_searching'));
   svService.getPanorama({ location, radius: opts.radius, source: 'outdoor' }, (data, status) => {
-    if (requestId !== latestStreetViewRequest) return;
+    if (requestId !== latestStreetViewRequest) { complete(); return; }
     if (status === 'OK') {
       const actual = data.location.latLng;
       const p = { lat: actual.lat(), lng: actual.lng() };
@@ -776,18 +842,19 @@ function openStreetViewAt(location, options) {
       if (opts.userInitiated) {
         if (previousPano === data.location.pano) emitLoaded();
         dismissMapCoach();
-        setSearchStatus(opts.label ? 'Apro Street View vicino a ' + opts.label : 'Street View trovato.');
+        setSearchStatus(opts.label ? t('app.street_opening', { label: opts.label }) : t('app.street_found'));
         openSheet(false);
-        showHint(opts.label ? 'Street View: ' + opts.label : 'Punto aggiornato', 2800);
+        showHint(opts.label ? t('app.street_hint', { label: opts.label }) : t('app.point_updated'), 2800);
       }
     } else if (opts.userInitiated) {
       trackAnalytics('viewpoint_load_failed', {
         selection_method: opts.selectionMethod,
         failure_reason: normalizedServiceFailure(status),
       });
-      setSearchStatus('Nessuno Street View vicino. Prova una strada o un punto sulla mappa.', true);
-      showHint('Qui non c\'è Street View: prova più vicino a una strada', 3400);
+      setSearchStatus(t('app.street_not_found'), true);
+      showHint(t('app.street_not_found_hint'), 3400);
     }
+    complete();
   });
 }
 
@@ -796,6 +863,10 @@ $('#placeSearch').addEventListener('submit', (e) => {
   const input = $('#placeQuery'), button = $('#btnSearch');
   const query = input.value.trim();
   const searchStartedAt = performance.now();
+  if (!geocoder || !map) {
+    setSearchStatus(t('app.maps_not_ready'), true);
+    return;
+  }
   if (!query) {
     trackAnalytics('place_search_completed', {
       is_successful: false,
@@ -803,12 +874,12 @@ $('#placeSearch').addEventListener('submit', (e) => {
       query_length_bucket: 'empty',
       latency_bucket: 'under_300ms',
     });
-    setSearchStatus('Scrivi un luogo, una città o un indirizzo.', true);
+    setSearchStatus(t('app.search_empty'), true);
     input.focus();
     return;
   }
   button.disabled = true;
-  setSearchStatus('Cerco “' + query + '”…');
+  setSearchStatus(t('app.searching_query', { query }));
   const request = { address: query, region: 'es' };
   const bounds = map && map.getBounds();
   if (bounds) request.bounds = bounds;
@@ -821,7 +892,7 @@ $('#placeSearch').addEventListener('submit', (e) => {
         query_length_bucket: queryLengthBucket(query.length),
         latency_bucket: latencyBucket(performance.now() - searchStartedAt),
       });
-      setSearchStatus('Luogo non trovato. Prova con città e paese, per esempio “Burgos, Spagna”.', true);
+      setSearchStatus(t('app.place_not_found'), true);
       return;
     }
     const result = results[0];
@@ -834,13 +905,78 @@ $('#placeSearch').addEventListener('submit', (e) => {
     map.setCenter(result.geometry.location);
     map.setZoom(17);
     marker.setPosition(result.geometry.location);
-    setSearchStatus('Trovato. Cerco lo Street View più vicino…');
+    setSearchStatus(t('app.place_found'));
     openStreetViewAt(result.geometry.location, {
       radius: 300,
       userInitiated: true,
       label: result.formatted_address || query,
       selectionMethod: 'search',
     });
+  });
+});
+
+$('#btnLocate').addEventListener('click', () => {
+  const button = $('#btnLocate');
+  const label = button.querySelector('span');
+  const startedAt = performance.now();
+  const finish = () => {
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
+    label.textContent = t('app.locate_button');
+  };
+  const fail = (status) => {
+    trackAnalytics('device_location_completed', {
+      is_successful: false,
+      result_status: status,
+      accuracy_bucket: 'unknown',
+      latency_bucket: latencyBucket(performance.now() - startedAt),
+    });
+    setSearchStatus(locationFailureMessage(status), true);
+    finish();
+  };
+
+  if (!window.isSecureContext) { fail('insecure_context'); return; }
+  if (!navigator.geolocation) { fail('unsupported'); return; }
+  if (!map || !marker || !svService) { fail('maps_not_ready'); return; }
+
+  button.disabled = true;
+  button.setAttribute('aria-busy', 'true');
+  label.textContent = t('app.locate_busy');
+  setSearchStatus(t('app.locating'));
+  navigator.geolocation.getCurrentPosition((position) => {
+    const coords = position && position.coords;
+    const lat = coords && Number(coords.latitude);
+    const lng = coords && Number(coords.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) {
+      fail('invalid_position');
+      return;
+    }
+    const location = { lat, lng };
+    const accuracy = Number(coords.accuracy);
+    trackAnalytics('device_location_completed', {
+      is_successful: true,
+      result_status: 'position_acquired',
+      accuracy_bucket: locationAccuracyBucket(accuracy),
+      latency_bucket: latencyBucket(performance.now() - startedAt),
+    });
+    map.setCenter(location);
+    map.setZoom(17);
+    marker.setPosition(location);
+    setSearchStatus(Number.isFinite(accuracy)
+      ? t('app.position_found_accuracy', { accuracy: Math.round(accuracy) })
+      : t('app.position_found'));
+    label.textContent = t('app.street_busy');
+    openStreetViewAt(location, {
+      radius: 300,
+      userInitiated: true,
+      label: t('app.your_location'),
+      selectionMethod: 'geolocation',
+      onComplete: finish,
+    });
+  }, (error) => fail(locationFailureStatus(error)), {
+    enableHighAccuracy: true,
+    timeout: 18000,
+    maximumAge: 0,
   });
 });
 
@@ -867,13 +1003,14 @@ $('#btnSun').addEventListener('click', () => {
 $('#btnCamera').addEventListener('click', (event) => {
   const target = new URL('ar.html', location.href);
   target.searchParams.set('t', state.date.toISOString());
+  target.searchParams.set('lang', I18N.language);
   event.currentTarget.href = target.href;
 });
 
 /* ---------- Init ---------- */
 function initApp() {
   const start = loadSavedPosition() || ZARAGOZA_START;
-  openSheet(false);
+  openSheet(false, null, false);
   pano = new google.maps.StreetViewPanorama($('#pano'), {
     position: start, pov: { heading: 285, pitch: 4 }, zoom: 1,
     motionTracking: false, fullscreenControl: false, addressControl: false,
@@ -887,7 +1024,7 @@ function initApp() {
   map.setStreetView(pano);
   svService = new google.maps.StreetViewService();
   geocoder = new google.maps.Geocoder();
-  marker = new google.maps.Marker({ map, position: start, title: 'Punto scelto' });
+  marker = new google.maps.Marker({ map, position: start, title: t('app.marker_title') });
 
   map.addListener('click', (ev) => {
     openStreetViewAt(ev.latLng, { radius: 120, userInitiated: true });
@@ -914,6 +1051,10 @@ window.gm_authFailure = function () {
     component: 'google_maps',
     action: 'initialize',
   });
+  setSearchStatus(t('app.maps_blocked'), true);
+  showHint(t('app.maps_blocked_hint'), 5000);
+  $('#btnSearch').disabled = true;
+  $('#btnLocate').disabled = true;
 };
 window.mapsScriptLoadFailed = function () {
   trackAnalytics('application_error_detected', {
@@ -921,9 +1062,29 @@ window.mapsScriptLoadFailed = function () {
     component: 'google_maps',
     action: 'load_script',
   });
+  setSearchStatus(t('app.maps_load_failed'), true);
+  showHint(t('app.maps_load_hint'), 5000);
+  $('#btnSearch').disabled = true;
+  $('#btnLocate').disabled = true;
 };
 window.initApp = initApp;
+function loadGoogleMaps() {
+  const script = document.createElement('script');
+  script.async = true;
+  script.dataset.googleMaps = '';
+  script.onerror = window.mapsScriptLoadFailed;
+  const params = new URLSearchParams({
+    key: 'AIzaSyBcnYkcvoYx5I5qQZb1oRaUTy_VmMb2DNU',
+    callback: 'initApp',
+    v: 'quarterly',
+    language: I18N.googleMapsLanguage(),
+    region: 'ES',
+    loading: 'async',
+  });
+  script.src = 'https://maps.googleapis.com/maps/api/js?' + params.toString();
+  document.body.appendChild(script);
+}
+loadGoogleMaps();
 </script>
-<script async onerror="mapsScriptLoadFailed()" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBcnYkcvoYx5I5qQZb1oRaUTy_VmMb2DNU&callback=initApp&v=quarterly&language=it&region=IT"></script>
 </body>
 </html>

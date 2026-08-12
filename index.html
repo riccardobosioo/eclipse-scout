@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eclipse Scout</title>
-<meta name="description" content="Vedi dove sarà il sole durante l'eclissi del 12 agosto 2026, sovrapposto a Street View. Scegli il punto giusto prima di partire.">
-<script src="analytics.js?v=20260812-3" data-surface="landing" data-app-version="2026.08.12.3"></script>
+<meta name="description" data-i18n-content="landing.description" content="Vedi dove sarà il sole durante l'eclissi del 12 agosto 2026, sovrapposto a Street View. Scegli il punto giusto prima di partire.">
+<script src="i18n.js?v=20260812-1"></script>
+<script src="analytics.js?v=20260812-4" data-surface="landing" data-app-version="2026.08.12.4"></script>
 <style>
   :root {
     --void: #06070c;
@@ -163,56 +164,56 @@
 <div class="wrap">
 
   <header class="hero">
-    <div class="kicker">12 agosto 2026 · eclissi totale</div>
-    <h1>Il sole sarà<br>dietro quel palazzo?<span class="thin">Scoprilo prima di partire.</span></h1>
-    <p class="lede">Durante la totalità il sole è a <b>6 gradi dall'orizzonte</b>. Bassissimo. Eclipse Scout te lo disegna sopra Street View, così vedi dal divano se il tuo punto è libero o coperto.</p>
+    <div class="kicker" data-i18n="landing.kicker">12 agosto 2026 · eclissi totale</div>
+    <h1 data-i18n-html="landing.hero">Il sole sarà<br>dietro quel palazzo?<span class="thin">Scoprilo prima di partire.</span></h1>
+    <p class="lede" data-i18n-html="landing.lede">Durante la totalità il sole è a <b>6 gradi dall'orizzonte</b>. Bassissimo. Eclipse Scout te lo disegna sopra Street View, così vedi dal divano se il tuo punto è libero o coperto.</p>
   </header>
 
   <figure class="sim">
-    <canvas id="sim" aria-label="Il sole cala verso l'orizzonte e viene eclissato dietro un profilo di palazzi"></canvas>
-    <figcaption>simulazione · 12 ago 2026 · Zaragoza</figcaption>
+    <canvas id="sim" data-i18n-aria-label="landing.sim_aria" aria-label="Il sole cala verso l'orizzonte e viene eclissato dietro un profilo di palazzi"></canvas>
+    <figcaption data-i18n="landing.sim_caption">simulazione · 12 ago 2026 · Zaragoza</figcaption>
   </figure>
 
   <div class="actions">
-    <a class="btn" id="openMap" href="app.html">Apri la mappa<small>Street View con sole e luna, niente da installare</small></a>
-    <a class="btn ghost" id="dl" href="eclipse-scout.zip" download="eclipse-scout.zip">Estensione per Chrome<small>per usarla dentro Google Maps · 59 KB</small></a>
+    <a class="btn" id="openMap" href="app.html" data-i18n-html="landing.open_map">Apri la mappa<small>Street View con sole e luna, niente da installare</small></a>
+    <a class="btn ghost" id="dl" href="eclipse-scout.zip" download="eclipse-scout.zip" data-i18n-html="landing.extension">Estensione per Chrome<small>per usarla dentro Google Maps · 59 KB</small></a>
   </div>
 
   <dl class="facts">
-    <div><dt>20:29</dt><dd>totalità<br>in Spagna</dd></div>
-    <div><dt>6°</dt><dd>altezza<br>del sole</dd></div>
-    <div><dt>95 m</dt><dd>e un palazzo<br>te lo copre</dd></div>
+    <div><dt>20:29</dt><dd data-i18n-html="landing.fact_totality">totalità<br>in Spagna</dd></div>
+    <div><dt>6°</dt><dd data-i18n-html="landing.fact_sun_height">altezza<br>del sole</dd></div>
+    <div><dt>95 m</dt><dd data-i18n-html="landing.fact_obstacle">e un palazzo<br>te lo copre</dd></div>
   </dl>
 
   <section>
-    <h2>Come si usa</h2>
+    <h2 data-i18n="landing.how_title">Come si usa</h2>
     <ol class="steps">
-      <li>Apri la mappa e tocca il punto che ti interessa: ti ritrovi lì in Street View.</li>
-      <li>Premi <span class="tot">totalità</span>. Il disco scuro compare dove sarà il sole.</li>
-      <li>Se davanti c'è un palazzo, scegli un altro punto. Se il cielo è libero, hai trovato il posto.</li>
+      <li data-i18n-html="landing.step_1">Apri la mappa e tocca il punto che ti interessa: ti ritrovi lì in Street View.</li>
+      <li data-i18n-html="landing.step_2">Premi <span class="tot">totalità</span>. Il disco scuro compare dove sarà il sole.</li>
+      <li data-i18n-html="landing.step_3">Se davanti c'è un palazzo, scegli un altro punto. Se il cielo è libero, hai trovato il posto.</li>
     </ol>
   </section>
 
   <section>
-    <h2>Cosa ti dice</h2>
-    <p class="muted">Se il punto scelto è dentro o fuori la fascia di totalità, con la percentuale di sole coperto. La traiettoria dell'intera giornata con gli orari. Altezza e direzione esatte di sole e luna, calcolate al primo d'arco per quel punto preciso.</p>
+    <h2 data-i18n="landing.what_title">Cosa ti dice</h2>
+    <p class="muted" data-i18n="landing.what_body">Se il punto scelto è dentro o fuori la fascia di totalità, con la percentuale di sole coperto. La traiettoria dell'intera giornata con gli orari. Altezza e direzione esatte di sole e luna, calcolate al primo d'arco per quel punto preciso.</p>
 
     <details>
-      <summary>Installare l'estensione Chrome</summary>
+      <summary data-i18n="landing.install_title">Installare l'estensione Chrome</summary>
       <div class="inner">
         <ol class="steps">
-          <li>Scarica lo zip qui sopra e scompattalo con un doppio clic.</li>
-          <li>Apri <code>chrome://extensions</code> e attiva Modalità sviluppatore.</li>
-          <li>Clicca "Carica estensione non pacchettizzata" e scegli la cartella.</li>
-          <li>Apri Street View su Google Maps: il pannello compare da solo.</li>
+          <li data-i18n-html="landing.install_1">Scarica lo zip qui sopra e scompattalo con un doppio clic.</li>
+          <li data-i18n-html="landing.install_2">Apri <code>chrome://extensions</code> e attiva Modalità sviluppatore.</li>
+          <li data-i18n-html="landing.install_3">Clicca "Carica estensione non pacchettizzata" e scegli la cartella.</li>
+          <li data-i18n-html="landing.install_4">Apri Street View su Google Maps: il pannello compare da solo.</li>
         </ol>
-        <p class="muted" style="margin-top:12px">Serve solo se vuoi l'overlay dentro Google Maps vero. Per tutto il resto basta la mappa qui sopra.</p>
+        <p class="muted" style="margin-top:12px" data-i18n="landing.install_note">Serve solo se vuoi l'overlay dentro Google Maps vero. Per tutto il resto basta la mappa qui sopra.</p>
       </div>
     </details>
   </section>
 
   <footer>
-    Calcoli astronomici con astronomy&#8209;engine, posizioni topocentriche. Orari nel fuso italiano (uguale alla Spagna). Codice aperto su <a href="https://github.com/riccardobosioo/eclipse-scout">GitHub</a>. <button class="privacy-link" type="button" data-analytics-preferences>Preferenze analytics</button>.
+    <span data-i18n-html="landing.footer">Calcoli astronomici con astronomy&#8209;engine, posizioni topocentriche. Orari nel fuso italiano (uguale alla Spagna). Codice aperto su <a href="https://github.com/riccardobosioo/eclipse-scout">GitHub</a>.</span> <button class="privacy-link" type="button" data-analytics-preferences data-i18n="common.analytics_preferences">Preferenze analytics</button>.
   </footer>
 </div>
 
@@ -283,7 +284,7 @@
       ctx.font = '700 11px "SF Mono", ui-monospace, Menlo, monospace';
       ctx.fillStyle = '#ff5252';
       const tx = Math.min(s.x + 16, w - 96);
-      ctx.fillText('20:29 TOTALITÀ', tx, s.y - 12);
+      ctx.fillText(window.EclipseI18n.t('landing.totality_label'), tx, s.y - 12);
     }
   }
 

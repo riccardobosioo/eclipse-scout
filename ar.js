@@ -13,6 +13,24 @@
   const canvas = $('#overlay');
   const ctx = canvas.getContext('2d');
   const slider = $('#timeSlider');
+  const I18N = window.EclipseI18n;
+  const t = (key, variables) => I18N.t(key, variables);
+  const fmtN = (value, digits) => I18N.formatNumber(value, digits);
+  const trackAnalytics = (name, properties) => window.EclipseAnalytics
+    && window.EclipseAnalytics.track(name, properties || {});
+
+  const backMap = $('#backMap');
+  if (backMap) {
+    const target = new URL('app.html', window.location.href);
+    target.searchParams.set('lang', I18N.language);
+    backMap.href = target.href;
+  }
+
+  function localizedError(code, key) {
+    const error = new Error(t(key));
+    error.resultStatus = code;
+    return error;
+  }
 
   const state = {
     started: false,
@@ -259,13 +277,13 @@
 
   async function requestOrientation() {
     if (typeof window.DeviceOrientationEvent === 'undefined') {
-      throw new Error('Questo browser non espone i sensori di orientamento.');
+      throw localizedError('orientation_unavailable', 'ar.error_orientation_unsupported');
     }
     if (typeof window.DeviceOrientationEvent.requestPermission === 'function') {
       // `true` richiede anche il riferimento assoluto/magnetometro nei browser
       // che implementano la firma W3C moderna; Safari legacy ignora l'argomento.
       const result = await window.DeviceOrientationEvent.requestPermission(true);
-      if (result !== 'granted') throw new Error('Permesso movimento e bussola non concesso.');
+      if (result !== 'granted') throw localizedError('permission_denied', 'ar.error_orientation_denied');
     }
     removeOrientationListeners();
     window.addEventListener('deviceorientationabsolute', onAbsoluteOrientation, true);
@@ -275,16 +293,13 @@
   function positionPromise() {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
-        reject(new Error('La geolocalizzazione non è disponibile in questo browser.'));
+        reject(localizedError('position_unavailable', 'ar.error_geolocation_unsupported'));
         return;
       }
       navigator.geolocation.getCurrentPosition(resolve, (error) => {
-        const message = error.code === 1
-          ? 'Permesso posizione non concesso.'
-          : error.code === 3
-            ? 'Il GPS non ha risposto in tempo. Prova all’aperto.'
-            : 'Posizione non disponibile. Prova all’aperto.';
-        reject(new Error(message));
+        if (error.code === 1) reject(localizedError('permission_denied', 'ar.error_location_denied'));
+        else if (error.code === 3) reject(localizedError('position_unavailable', 'ar.error_location_timeout'));
+        else reject(localizedError('position_unavailable', 'ar.error_location_unavailable'));
       }, { enableHighAccuracy: true, timeout: 18000, maximumAge: 10000 });
     });
   }
@@ -310,7 +325,7 @@
 
   async function startCamera() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error('La fotocamera web non è disponibile in questo browser.');
+      throw localizedError('camera_unavailable', 'ar.error_camera_unsupported');
     }
     stopCamera();
     const videoDefaults = { width: { ideal: 1920 }, height: { ideal: 1080 } };
@@ -333,7 +348,7 @@
     const facingMode = track && track.getSettings ? track.getSettings().facingMode : '';
     if (facingMode === 'user' || (usedFallback && facingMode !== 'environment')) {
       stream.getTracks().forEach((item) => item.stop());
-      throw new Error('Non riesco a confermare la fotocamera posteriore su questo browser.');
+      throw localizedError('camera_unavailable', 'ar.error_rear_camera');
     }
     state.stream = stream;
     video.srcObject = stream;
@@ -356,11 +371,11 @@
         if (state.rawBasis && state.orientationSource !== 'relative'
           && state.orientationSource !== 'invalid_compass' && !state.compassNeedsCalibration) resolve();
         else if (performance.now() - startedAt > timeoutMilliseconds) {
-          reject(new Error(state.orientationSource === 'relative'
-            ? 'Il browser fornisce solo orientamento relativo, senza nord reale. Prova Safari su iPhone o Chrome su Android.'
+          reject(localizedError('sensor_timeout', state.orientationSource === 'relative'
+            ? 'ar.error_relative_orientation'
             : state.orientationSource === 'invalid_compass'
-              ? 'La bussola non è calibrata. Muovi il telefono a forma di 8 e riprova.'
-            : 'Nessun dato dalla bussola. Muovi il telefono e riprova.'));
+              ? 'ar.error_compass_uncalibrated'
+              : 'ar.error_no_compass'));
         } else setTimeout(check, 100);
       };
       check();
@@ -372,6 +387,12 @@
     row.classList.toggle('ok', status === 'ok');
     row.classList.toggle('error', status === 'error');
     row.querySelector('.state').textContent = label;
+  }
+
+  function arFailureStatus(error) {
+    if (error && typeof error.resultStatus === 'string') return error.resultStatus;
+    if (!window.isSecureContext) return 'insecure_context';
+    return 'unknown_failure';
   }
 
   async function requestWakeLock() {
@@ -392,48 +413,46 @@
     state.compassNeedsCalibration = false;
     state.lastAbsoluteAt = 0;
     button.disabled = true;
-    button.textContent = 'Attivazione…';
+    button.textContent = t('ar.activating');
     $('#setupError').textContent = '';
 
     if (!window.isSecureContext) {
-      $('#setupError').textContent = 'Serve un collegamento HTTPS per fotocamera, GPS e bussola.';
+      $('#setupError').textContent = t('ar.error_secure');
       state.starting = false;
       button.disabled = false;
-      button.textContent = 'Riprova';
+      button.textContent = t('ar.retry');
       return;
     }
 
     try {
-      setPermission('#permOrientation', 'pending', 'richiesta…');
+      setPermission('#permOrientation', 'pending', t('ar.permission_requesting'));
       try {
         await requestOrientation();
-        setPermission('#permOrientation', 'ok', 'consentita');
+        setPermission('#permOrientation', 'ok', t('ar.permission_allowed'));
       } catch (error) {
-        setPermission('#permOrientation', 'error', 'bloccata');
+        setPermission('#permOrientation', 'error', t('ar.permission_blocked'));
         throw error;
       }
 
-      setPermission('#permLocation', 'pending', 'richiesta…');
+      setPermission('#permLocation', 'pending', t('ar.permission_requesting'));
       try {
         const position = await positionPromise();
         setPosition(position);
-        setPermission('#permLocation', 'ok', state.locationAccuracy ? '±' + state.locationAccuracy + ' m' : 'attiva');
+        setPermission('#permLocation', 'ok', state.locationAccuracy ? '±' + state.locationAccuracy + ' m' : t('ar.permission_active'));
       } catch (error) {
-        setPermission('#permLocation', 'error', 'bloccata');
+        setPermission('#permLocation', 'error', t('ar.permission_blocked'));
         throw error;
       }
 
-      setPermission('#permCamera', 'pending', 'richiesta…');
+      setPermission('#permCamera', 'pending', t('ar.permission_requesting'));
       try {
         await startCamera();
-        setPermission('#permCamera', 'ok', 'attiva');
+        setPermission('#permCamera', 'ok', t('ar.permission_active'));
       } catch (error) {
-        setPermission('#permCamera', 'error', 'bloccata');
-        throw new Error(error && error.name === 'NotAllowedError'
-          ? 'Permesso fotocamera non concesso.'
-          : error && error.message
-            ? error.message
-            : 'Impossibile avviare la fotocamera posteriore.');
+        setPermission('#permCamera', 'error', t('ar.permission_blocked'));
+        if (error && error.name === 'NotAllowedError') throw localizedError('permission_denied', 'ar.error_camera_denied');
+        if (error && error.resultStatus) throw error;
+        throw localizedError('camera_unavailable', 'ar.error_camera_start');
       }
 
       await waitForSensor(5500);
@@ -447,6 +466,7 @@
       state.lastFrameAt = performance.now();
       cancelAnimationFrame(state.animationFrame);
       state.animationFrame = requestAnimationFrame(renderFrame);
+      trackAnalytics('ar_start_completed', { is_successful: true, result_status: 'started' });
     } catch (error) {
       stopCamera();
       removeOrientationListeners();
@@ -456,8 +476,9 @@
         navigator.geolocation.clearWatch(state.watchId);
         state.watchId = null;
       }
-      $('#setupError').textContent = error && error.message ? error.message : 'Non sono riuscito ad avviare la modalità AR.';
-      button.textContent = 'Riprova';
+      $('#setupError').textContent = error && error.message ? error.message : t('ar.error_generic');
+      trackAnalytics('ar_start_completed', { is_successful: false, result_status: arFailureStatus(error) });
+      button.textContent = t('ar.retry');
       button.disabled = false;
     } finally {
       state.starting = false;
@@ -545,7 +566,7 @@
   }
 
   function formatTime(date) {
-    return new Intl.DateTimeFormat('it-IT', {
+    return new Intl.DateTimeFormat(I18N.locale, {
       timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit', hour12: false,
     }).format(date);
   }
@@ -556,11 +577,11 @@
     const eclipse = state.eclipse;
     if (!eclipse) return;
     const entries = [
-      { label: 'inizio', date: eclipse.partial_begin.time.date, className: '' },
+      { label: t('ar.preset_begin'), date: eclipse.partial_begin.time.date, className: '' },
       eclipse.kind === 'total' && eclipse.total_begin
-        ? { label: 'totalità', date: eclipse.total_begin.time.date, className: 'peak' }
-        : { label: 'massimo', date: eclipse.peak.time.date, className: 'peak' },
-      { label: 'fine', date: eclipse.partial_end.time.date, className: '' },
+        ? { label: t('ar.preset_totality'), date: eclipse.total_begin.time.date, className: 'peak' }
+        : { label: t('ar.preset_maximum'), date: eclipse.peak.time.date, className: 'peak' },
+      { label: t('ar.preset_end'), date: eclipse.partial_end.time.date, className: '' },
     ];
     entries.forEach((entry) => {
       const button = document.createElement('button');
@@ -751,11 +772,11 @@
       ctx.strokeStyle = phase.phase === 'totality' ? '#fff7e7' : '#fff2c4';
       ctx.lineWidth = 2;
       ctx.stroke();
-      const tag = phase.phase === 'totality' ? 'TOTALITÀ'
+      const tag = phase.phase === 'totality' ? t('ar.totality')
         : phase.fraction > 0 ? Math.round(phase.fraction * 100) + '%' : formatTime(state.date);
       label(tag, sunPoint.x + radius + 8, sunPoint.y - radius - 4,
         phase.phase === 'totality' ? '#ff9b9b' : '#ffd49a', 13);
-      label(phase.sun.alt.toFixed(1) + '° sull’orizzonte', sunPoint.x + radius + 8, sunPoint.y - radius + 13, '#f7f4eb', 10);
+      label(t('ar.above_horizon', { alt: fmtN(phase.sun.alt, 1) }), sunPoint.x + radius + 8, sunPoint.y - radius + 13, '#f7f4eb', 10);
     }
 
     if (moonPoint && pointUsable(moonPoint, width, height)) {
@@ -775,8 +796,8 @@
     else {
       const headingDifference = wrap180(phase.sun.az - headingOf(basis.forward));
       const pitchDifference = phase.sun.alt - pitchOf(basis.forward);
-      if (Math.abs(headingDifference) > 12) hint.textContent = headingDifference > 0 ? 'Il Sole è a destra →' : '← Il Sole è a sinistra';
-      else hint.textContent = pitchDifference > 0 ? 'Il Sole è più in alto ↑' : 'Il Sole è più in basso ↓';
+      if (Math.abs(headingDifference) > 12) hint.textContent = headingDifference > 0 ? t('ar.sun_right') : t('ar.sun_left');
+      else hint.textContent = pitchDifference > 0 ? t('ar.sun_up') : t('ar.sun_down');
     }
   }
 
@@ -791,18 +812,21 @@
     chip.classList.toggle('warning', relative || magnetic || invalidCompass || lowAccuracy);
     const accuracyText = state.locationAccuracy ? ' · GPS ±' + state.locationAccuracy + ' m' : '';
     $('#sensorStatus').textContent = invalidCompass
-      ? 'muovi il telefono a forma di 8'
+      ? t('ar.sensor_move_eight')
       : relative
-      ? 'bussola relativa · calibra' + accuracyText
+      ? t('ar.sensor_relative', { accuracy: accuracyText })
       : lowAccuracy
-        ? 'precisione bussola bassa' + accuracyText
+        ? t('ar.sensor_low_accuracy', { accuracy: accuracyText })
         : magnetic
-          ? 'nord magnetico · calibra' + accuracyText
-          : 'nord magnetico · calibra' + accuracyText;
-    $('#debug').textContent = 'direzione ' + headingOf(basis.forward).toFixed(1) + '° · inclinazione '
-      + pitchOf(basis.forward).toFixed(1) + '° · sorgente ' + state.orientationSource
-      + '\ncorrezione ' + calibration.heading.toFixed(1) + '° / ' + calibration.pitch.toFixed(1)
-      + '° · FOV diagonale ' + calibration.fov.toFixed(0) + '°';
+          ? t('ar.sensor_magnetic', { accuracy: accuracyText })
+          : t('ar.sensor_magnetic', { accuracy: accuracyText });
+    const sourceKey = 'ar.source_' + state.orientationSource;
+    const sourceLabel = I18N.keys.indexOf(sourceKey) !== -1 ? t(sourceKey) : state.orientationSource;
+    $('#debug').textContent = t('ar.debug', {
+      heading: fmtN(headingOf(basis.forward), 1), pitch: fmtN(pitchOf(basis.forward), 1),
+      source: sourceLabel, headingOffset: fmtN(calibration.heading, 1),
+      pitchOffset: fmtN(calibration.pitch, 1), fov: fmtN(calibration.fov, 0),
+    });
   }
 
   function renderFrame(now) {
@@ -832,7 +856,7 @@
     if (!state.position) return;
     const phase = currentPhase();
     const cover = $('#cover');
-    cover.innerHTML = '<span>sole coperto</span>' + Math.round(phase.fraction * 100) + '%';
+    cover.innerHTML = '<span>' + t('ar.cover_label') + '</span>' + Math.round(phase.fraction * 100) + '%';
     cover.classList.toggle('total', phase.phase === 'totality');
   }
 
@@ -840,9 +864,9 @@
     $('#headingOffset').value = String(calibration.heading);
     $('#pitchOffset').value = String(calibration.pitch);
     $('#cameraFov').value = String(calibration.fov);
-    $('#headingValue').textContent = calibration.heading.toFixed(1) + '°';
-    $('#pitchValue').textContent = calibration.pitch.toFixed(1) + '°';
-    $('#fovValue').textContent = calibration.fov.toFixed(0) + '°';
+    $('#headingValue').textContent = fmtN(calibration.heading, 1) + '°';
+    $('#pitchValue').textContent = fmtN(calibration.pitch, 1) + '°';
+    $('#fovValue').textContent = fmtN(calibration.fov, 0) + '°';
   }
 
   function openCalibration(open) {
@@ -937,7 +961,7 @@
   const mathCheckPassed = runMathSelfCheck();
   document.documentElement.dataset.arMathCheck = mathCheckPassed ? 'ok' : 'failed';
   if (!mathCheckPassed) {
-    $('#setupError').textContent = 'Controllo interno orientamento non riuscito. Ricarica la pagina.';
+    $('#setupError').textContent = t('ar.error_internal');
     $('#startAr').disabled = true;
   }
   syncCalibrationUi();

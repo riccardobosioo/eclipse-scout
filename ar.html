@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#06070c">
-<title>Eclipse Scout — fotocamera AR</title>
+<title data-i18n="ar.title">Eclipse Scout — fotocamera AR</title>
+<script src="i18n.js?v=20260812-1"></script>
+<script src="analytics.js?v=20260812-4" data-surface="ar" data-app-version="2026.08.12.4"></script>
 <style>
   :root {
     color-scheme: dark;
@@ -115,40 +117,40 @@
 </style>
 </head>
 <body>
-<video id="camera" autoplay muted playsinline aria-label="Anteprima della fotocamera posteriore"></video>
+<video id="camera" autoplay muted playsinline data-i18n-aria-label="ar.camera_aria" aria-label="Anteprima della fotocamera posteriore"></video>
 <canvas id="overlay" aria-hidden="true"></canvas>
 <div id="shade" aria-hidden="true"></div>
 <div id="crosshair" aria-hidden="true"></div>
 <div id="offscreenHint" role="status"></div>
 
 <header class="topbar">
-  <a class="icon-button" href="app.html" aria-label="Torna alla mappa">
+  <a class="icon-button" id="backMap" href="app.html" data-i18n-aria-label="ar.back_map" aria-label="Torna alla mappa">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
   </a>
   <div class="status-stack">
-    <div class="mode-chip">AR sperimentale</div>
-    <div class="sensor-chip warning" id="sensorChip"><span class="dot"></span><span id="sensorStatus">in attesa dei sensori</span></div>
+    <div class="mode-chip" data-i18n="ar.mode">AR sperimentale</div>
+    <div class="sensor-chip warning" id="sensorChip"><span class="dot"></span><span id="sensorStatus" data-i18n="ar.sensor_wait">in attesa dei sensori</span></div>
   </div>
-  <button class="icon-button" id="calibrateTop" type="button" aria-label="Apri calibrazione">
+  <button class="icon-button" id="calibrateTop" type="button" data-i18n-aria-label="ar.open_calibration" aria-label="Apri calibrazione">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
   </button>
 </header>
 
 <section id="dock" hidden>
   <div class="time-row">
-    <div id="clock">20:29</div><div class="date">12 AGO 2026 · CEST</div>
-    <div id="cover"><span>sole coperto</span>—</div>
+    <div id="clock">20:29</div><div class="date" data-i18n="ar.date">12 AGO 2026 · CEST</div>
+    <div id="cover"><span data-i18n="ar.cover_label">sole coperto</span>—</div>
   </div>
-  <input id="timeSlider" type="range" min="1140" max="1320" step="1" value="1229" aria-label="Ora dell'eclissi">
+  <input id="timeSlider" type="range" min="1140" max="1320" step="1" value="1229" data-i18n-aria-label="ar.time_aria" aria-label="Ora dell'eclissi">
   <div class="preset-row" id="presets"></div>
   <div class="tool-row">
     <button type="button" id="openCalibration">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
-      Calibra
+      <span data-i18n="ar.calibrate">Calibra</span>
     </button>
     <button type="button" id="togglePath" aria-pressed="true">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18c5-10 11-10 16 0"/><circle cx="4" cy="18" r="1"/><circle cx="20" cy="18" r="1"/></svg>
-      Traiettoria
+      <span data-i18n="ar.trajectory">Traiettoria</span>
     </button>
   </div>
 </section>
@@ -158,46 +160,46 @@
     <div class="setup-icon">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 13 3h-2L9.5 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="4"/></svg>
     </div>
-    <h1 id="setupTitle">Inquadra il cielo reale</h1>
-    <p class="intro">La traiettoria del Sole viene disegnata sopra la fotocamera nella tua posizione.</p>
+    <h1 id="setupTitle" data-i18n="ar.setup_title">Inquadra il cielo reale</h1>
+    <p class="intro" data-i18n="ar.setup_intro">La traiettoria del Sole viene disegnata sopra la fotocamera nella tua posizione.</p>
     <div class="permission-list" aria-live="polite">
-      <div class="permission" id="permLocation"><span class="p-dot"></span><span>Posizione precisa</span><span class="state">da chiedere</span></div>
-      <div class="permission" id="permOrientation"><span class="p-dot"></span><span>Movimento e bussola</span><span class="state">da chiedere</span></div>
-      <div class="permission" id="permCamera"><span class="p-dot"></span><span>Fotocamera posteriore</span><span class="state">da chiedere</span></div>
+      <div class="permission" id="permLocation"><span class="p-dot"></span><span data-i18n="ar.permission_location">Posizione precisa</span><span class="state" data-i18n="ar.permission_ask">da chiedere</span></div>
+      <div class="permission" id="permOrientation"><span class="p-dot"></span><span data-i18n="ar.permission_orientation">Movimento e bussola</span><span class="state" data-i18n="ar.permission_ask">da chiedere</span></div>
+      <div class="permission" id="permCamera"><span class="p-dot"></span><span data-i18n="ar.permission_camera">Fotocamera posteriore</span><span class="state" data-i18n="ar.permission_ask">da chiedere</span></div>
     </div>
-    <button class="primary" id="startAr" type="button">Consenti e avvia AR</button>
+    <button class="primary" id="startAr" type="button" data-i18n="ar.start">Consenti e avvia AR</button>
     <p id="setupError" role="alert"></p>
-    <p class="privacy">Immagini, posizione e dati grezzi dei sensori non vengono inviati né salvati. Restano memorizzate solo le correzioni manuali di calibrazione.</p>
-    <p class="safety">Non guardare mai il Sole direttamente fuori dalla fase di totalità.</p>
+    <p class="privacy" data-i18n="ar.privacy">Immagini, posizione e dati grezzi dei sensori non vengono inviati né salvati. Restano memorizzate solo le correzioni manuali di calibrazione.</p>
+    <p class="safety" data-i18n="ar.safety">Non guardare mai il Sole direttamente fuori dalla fase di totalità.</p>
   </div>
 </div>
 
 <section id="calibration" hidden aria-labelledby="calTitle">
   <div class="sheet-head">
-    <div><h2 id="calTitle">Calibrazione fine</h2><p>Corregge bussola e lente solo su questo telefono.</p></div>
-    <button type="button" id="closeCalibration" aria-label="Chiudi calibrazione">✕</button>
+    <div><h2 id="calTitle" data-i18n="ar.calibration_title">Calibrazione fine</h2><p data-i18n="ar.calibration_subtitle">Corregge bussola e lente solo su questo telefono.</p></div>
+    <button type="button" id="closeCalibration" data-i18n-aria-label="ar.close_calibration" aria-label="Chiudi calibrazione">✕</button>
   </div>
   <div class="control">
-    <label for="headingOffset"><span>Direzione ← →</span><output id="headingValue">0°</output></label>
+    <label for="headingOffset"><span data-i18n="ar.direction">Direzione ← →</span><output id="headingValue">0°</output></label>
     <input id="headingOffset" type="range" min="-45" max="45" step="0.5" value="0">
   </div>
   <div class="control">
-    <label for="pitchOffset"><span>Orizzonte ↑ ↓</span><output id="pitchValue">0°</output></label>
+    <label for="pitchOffset"><span data-i18n="ar.horizon">Orizzonte ↑ ↓</span><output id="pitchValue">0°</output></label>
     <input id="pitchOffset" type="range" min="-30" max="30" step="0.5" value="0">
   </div>
   <div class="control">
-    <label for="cameraFov"><span>Ampiezza fotocamera</span><output id="fovValue">72°</output></label>
+    <label for="cameraFov"><span data-i18n="ar.camera_width">Ampiezza fotocamera</span><output id="fovValue">72°</output></label>
     <input id="cameraFov" type="range" min="45" max="100" step="1" value="72">
   </div>
   <div class="cal-actions">
-    <button type="button" id="setHorizon">Centro = orizzonte</button>
-    <button type="button" id="resetCalibration">Azzera</button>
+    <button type="button" id="setHorizon" data-i18n="ar.center_horizon">Centro = orizzonte</button>
+    <button type="button" id="resetCalibration" data-i18n="ar.reset">Azzera</button>
   </div>
-  <p class="cal-note">Per “Centro = orizzonte”, punta il mirino su un orizzonte reale e premi il pulsante. Su iPhone il nord è magnetico: usa “Direzione” con un riferimento noto se serve una correzione.</p>
+  <p class="cal-note" data-i18n="ar.calibration_note">Per “Centro = orizzonte”, punta il mirino su un orizzonte reale e premi il pulsante. Su iPhone il nord è magnetico: usa “Direzione” con un riferimento noto se serve una correzione.</p>
   <div id="debug" aria-live="off"></div>
 </section>
 
 <script src="astronomy.browser.min.js"></script>
-<script src="ar.js?v=20260812-1"></script>
+<script src="ar.js?v=20260812-2"></script>
 </body>
 </html>

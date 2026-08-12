@@ -5,7 +5,10 @@
   const TOKEN = '2ca9f8ac2f7238ac5af0ec0bbd259faf';
   const SDK_URL = 'https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js';
   const CONSENT_KEY = 'eclipseScout:analyticsConsent:v1';
-  const surface = script && script.dataset.surface === 'app' ? 'app' : 'landing';
+  const requestedSurface = script && script.dataset.surface;
+  const surface = requestedSurface === 'app' || requestedSurface === 'ar' ? requestedSurface : 'landing';
+  const i18n = window.EclipseI18n;
+  const t = function (key) { return i18n ? i18n.t(key) : key; };
   const appVersion = (script && script.dataset.appVersion) || '2026.08.12.1';
   const isProduction = window.location.protocol === 'https:'
     && window.location.hostname === 'riccardobosioo.github.io'
@@ -16,9 +19,12 @@
     map_opened: ['entry_method', 'destination'],
     extension_downloaded: ['artifact_type'],
     app_opened: [],
+    ar_opened: [],
+    ar_start_completed: ['is_successful', 'result_status'],
     viewpoint_loaded: ['selection_method', 'eclipse_kind', 'eclipse_phase', 'obscuration_percent', 'sun_altitude_degrees'],
     viewpoint_load_failed: ['selection_method', 'failure_reason'],
     place_search_completed: ['is_successful', 'result_status', 'query_length_bucket', 'latency_bucket'],
+    device_location_completed: ['is_successful', 'result_status', 'accuracy_bucket', 'latency_bucket'],
     sun_view_centered: ['sun_altitude_degrees', 'camera_pitch_degrees', 'camera_zoom', 'horizontal_fov_degrees', 'eclipse_phase', 'obscuration_percent'],
     eclipse_time_selected: ['selection_method', 'preset_name', 'playback_action'],
     overlay_feedback_submitted: ['is_aligned', 'camera_pitch_degrees', 'camera_zoom', 'horizontal_fov_degrees', 'eclipse_phase', 'obscuration_percent', 'sun_altitude_degrees'],
@@ -33,6 +39,7 @@
   let consentPanel = null;
 
   const enums = Object.freeze({
+    accuracy_bucket: ['under_20m', '20_49m', '50_199m', '200m_or_more', 'unknown'],
     action: ['update_eclipse', 'initialize', 'load_script'],
     artifact_type: ['chrome_extension_zip'],
     component: ['astronomy', 'google_maps'],
@@ -46,8 +53,8 @@
     playback_action: ['started', 'stopped'],
     preset_name: ['partial_begin', 'totality_begin', 'maximum', 'partial_end'],
     query_length_bucket: ['empty', '1_10', '11_30', '31_60', 'over_60'],
-    result_status: ['empty_query', 'result_found', 'not_found', 'permission_or_quota', 'temporary_failure', 'invalid_request', 'service_unavailable', 'unknown_failure'],
-    selection_method: ['map', 'search', 'slider', 'preset', 'playback'],
+    result_status: ['empty_query', 'result_found', 'position_acquired', 'started', 'permission_denied', 'orientation_unavailable', 'camera_unavailable', 'sensor_timeout', 'position_unavailable', 'timeout', 'unsupported', 'insecure_context', 'maps_not_ready', 'invalid_position', 'not_found', 'permission_or_quota', 'temporary_failure', 'invalid_request', 'service_unavailable', 'unknown_failure'],
+    selection_method: ['map', 'search', 'geolocation', 'slider', 'preset', 'playback'],
   });
 
   function readConsent() {
@@ -133,7 +140,7 @@
   function trackPageOpen() {
     if (!domReady || sdkState !== 'ready' || pageOpenTracked || consent !== 'granted') return;
     pageOpenTracked = true;
-    track(surface === 'app' ? 'app_opened' : 'landing_viewed');
+    track(surface === 'app' ? 'app_opened' : surface === 'ar' ? 'ar_opened' : 'landing_viewed');
   }
 
   function activateSdk(instance) {
@@ -305,12 +312,12 @@
     consentPanel.setAttribute('role', 'dialog');
     consentPanel.setAttribute('aria-labelledby', 'esAnalyticsTitle');
     consentPanel.innerHTML =
-      '<button class="es-consent-close" type="button" data-consent-close aria-label="Chiudi" hidden>×</button>' +
-      '<h2 id="esAnalyticsTitle">Analytics anonimi</h2>' +
-      '<p>Ci aiutano a capire se la mappa funziona e se il sole risulta allineato. Non registriamo lo schermo, le ricerche o la posizione scelta.</p>' +
+      '<button class="es-consent-close" type="button" data-consent-close aria-label="' + t('analytics.close') + '" hidden>×</button>' +
+      '<h2 id="esAnalyticsTitle">' + t('analytics.title') + '</h2>' +
+      '<p>' + t('analytics.description') + '</p>' +
       '<div class="es-consent-actions">' +
-        '<button type="button" data-consent="granted">Accetta analytics</button>' +
-        '<button type="button" data-consent="denied">Continua senza</button>' +
+        '<button type="button" data-consent="granted">' + t('analytics.accept') + '</button>' +
+        '<button type="button" data-consent="denied">' + t('analytics.decline') + '</button>' +
       '</div>';
     document.body.appendChild(consentPanel);
 
