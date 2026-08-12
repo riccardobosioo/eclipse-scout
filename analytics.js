@@ -1,0 +1,276 @@
+(function (window, document) {
+  'use strict';
+
+  const script = document.currentScript;
+  const TOKEN = '2ca9f8ac2f7238ac5af0ec0bbd259faf';
+  const SDK_URL = 'https://cdn.mxpnl.com/libs/mixpanel-2-latest.min.js';
+  const CONSENT_KEY = 'eclipseScout:analyticsConsent:v1';
+  const surface = script && script.dataset.surface === 'app' ? 'app' : 'landing';
+  const appVersion = (script && script.dataset.appVersion) || '2026.08.12.1';
+  const isProduction = window.location.protocol === 'https:'
+    && window.location.hostname === 'riccardobosioo.github.io'
+    && window.location.pathname.indexOf('/eclipse-scout/') === 0;
+
+  const allowedProperties = Object.freeze({
+    landing_viewed: [],
+    map_opened: ['entry_method', 'destination'],
+    extension_downloaded: ['artifact_type'],
+    app_opened: [],
+    viewpoint_loaded: ['selection_method', 'eclipse_kind', 'eclipse_phase', 'obscuration_percent', 'sun_altitude_degrees'],
+    viewpoint_load_failed: ['selection_method', 'failure_reason'],
+    place_search_completed: ['is_successful', 'result_status', 'query_length_bucket', 'latency_bucket'],
+    sun_view_centered: ['sun_altitude_degrees', 'camera_pitch_degrees', 'camera_zoom', 'horizontal_fov_degrees', 'eclipse_phase', 'obscuration_percent'],
+    eclipse_time_selected: ['selection_method', 'preset_name', 'playback_action'],
+    overlay_feedback_submitted: ['is_aligned', 'camera_pitch_degrees', 'camera_zoom', 'horizontal_fov_degrees', 'eclipse_phase', 'obscuration_percent', 'sun_altitude_degrees'],
+    application_error_detected: ['error_code', 'component', 'action'],
+  });
+
+  let consent = readConsent();
+  let sdkState = 'idle';
+  let domReady = document.readyState !== 'loading';
+  let pageOpenTracked = false;
+  let pendingEvents = [];
+  let consentPanel = null;
+
+  function readConsent() {
+    try {
+      const value = window.localStorage.getItem(CONSENT_KEY);
+      return value === 'granted' || value === 'denied' ? value : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function persistConsent(value) {
+    consent = value;
+    try { window.localStorage.setItem(CONSENT_KEY, value); } catch (error) { /* session only */ }
+  }
+
+  function round(value, digits) {
+    const factor = Math.pow(10, digits || 0);
+    return Math.round(value * factor) / factor;
+  }
+
+  function viewportOrientation() {
+    if (window.innerWidth === window.innerHeight) return 'square';
+    return window.innerWidth > window.innerHeight ? 'landscape' : 'portrait';
+  }
+
+  function commonProperties() {
+    return {
+      platform: 'web',
+      surface: surface,
+      app_version: appVersion,
+      viewport_orientation: viewportOrientation(),
+      viewport_width: Math.round(window.innerWidth),
+      viewport_height: Math.round(window.innerHeight),
+      device_pixel_ratio: round(Number(window.devicePixelRatio) || 1, 2),
+    };
+  }
+
+  function safeValue(value) {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+    if (typeof value === 'string') return value.trim() ? value.trim().slice(0, 64) : undefined;
+    return undefined;
+  }
+
+  function sanitizeProperties(eventName, properties) {
+    const clean = {};
+    const allowed = allowedProperties[eventName] || [];
+    const source = properties && typeof properties === 'object' ? properties : {};
+    allowed.forEach((name) => {
+      const value = safeValue(source[name]);
+      if (value !== undefined) clean[name] = value;
+    });
+    return Object.assign(clean, commonProperties());
+  }
+
+  function sendEvent(item) {
+    if (sdkState !== 'ready' || consent !== 'granted') return;
+    const options = item.transport === 'sendBeacon' ? { transport: 'sendBeacon' } : undefined;
+    window.mixpanel.track(item.name, item.properties, options);
+  }
+
+  function flushEvents() {
+    const events = pendingEvents;
+    pendingEvents = [];
+    events.forEach(sendEvent);
+  }
+
+  function trackPageOpen() {
+    if (!domReady || sdkState !== 'ready' || pageOpenTracked || consent !== 'granted') return;
+    pageOpenTracked = true;
+    track(surface === 'app' ? 'app_opened' : 'landing_viewed');
+  }
+
+  function initializeSdk() {
+    if (consent !== 'granted') {
+      sdkState = 'idle';
+      pendingEvents = [];
+      return;
+    }
+    if (!window.mixpanel || typeof window.mixpanel.init !== 'function') {
+      sdkState = 'failed';
+      return;
+    }
+
+    window.mixpanel.init(TOKEN, {
+      autocapture: false,
+      debug: false,
+      flags: false,
+      ignore_dnt: false,
+      ip: false,
+      opt_out_persistence_by_default: true,
+      opt_out_tracking_by_default: true,
+      opt_out_tracking_persistence_type: 'localStorage',
+      persistence: 'localStorage',
+      property_blacklist: [
+        '$current_url', '$referrer', '$referring_domain', '$initial_referrer', '$initial_referring_domain',
+        'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term',
+      ],
+      record_sessions_percent: 0,
+      remote_settings_mode: 'disabled',
+      save_referrer: false,
+      skip_first_touch_marketing: true,
+      stop_utm_persistence: true,
+      store_google: false,
+      track_marketing: false,
+      track_pageview: false,
+    });
+    window.mixpanel.opt_in_tracking({ track: function () {} });
+    window.mixpanel.register({ platform: 'web', surface: surface, app_version: appVersion });
+    sdkState = 'ready';
+    flushEvents();
+    trackPageOpen();
+  }
+
+  function loadSdk() {
+    if (!isProduction || consent !== 'granted' || sdkState !== 'idle') return;
+    sdkState = 'loading';
+    if (window.mixpanel && typeof window.mixpanel.init === 'function') {
+      initializeSdk();
+      return;
+    }
+    const sdk = document.createElement('script');
+    sdk.async = true;
+    sdk.src = SDK_URL;
+    sdk.onload = initializeSdk;
+    sdk.onerror = function () {
+      sdkState = 'failed';
+      pendingEvents = [];
+    };
+    (document.head || document.documentElement).appendChild(sdk);
+  }
+
+  function track(eventName, properties, options) {
+    if (!Object.prototype.hasOwnProperty.call(allowedProperties, eventName)) return false;
+    if (!isProduction || consent !== 'granted') return false;
+    const item = {
+      name: eventName,
+      properties: sanitizeProperties(eventName, properties),
+      transport: options && options.transport,
+    };
+    if (sdkState === 'ready') sendEvent(item);
+    else {
+      if (pendingEvents.length < 50) pendingEvents.push(item);
+      loadSdk();
+    }
+    return true;
+  }
+
+  function dispatchConsentChange() {
+    window.dispatchEvent(new CustomEvent('eclipseanalytics:consentchange', {
+      detail: { consent: consent },
+    }));
+  }
+
+  function closePreferences() {
+    if (consentPanel) consentPanel.hidden = true;
+  }
+
+  function setConsent(value) {
+    if (value !== 'granted' && value !== 'denied') return false;
+    persistConsent(value);
+    closePreferences();
+
+    if (value === 'granted') {
+      if (sdkState === 'ready') window.mixpanel.opt_in_tracking({ track: function () {} });
+      loadSdk();
+      trackPageOpen();
+    } else {
+      pendingEvents = [];
+      if (sdkState === 'ready') {
+        window.mixpanel.opt_out_tracking({ clear_persistence: true, delete_user: false });
+      }
+    }
+    dispatchConsentChange();
+    return true;
+  }
+
+  function openPreferences() {
+    if (!consentPanel) createConsentUi();
+    if (!consentPanel) return;
+    const closeButton = consentPanel.querySelector('[data-consent-close]');
+    if (closeButton) closeButton.hidden = consent === null;
+    consentPanel.hidden = false;
+  }
+
+  function createConsentUi() {
+    if (consentPanel || !document.body) return;
+    const style = document.createElement('style');
+    style.textContent = [
+      '#esAnalyticsConsent{position:fixed;z-index:10000;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));max-width:520px;margin:auto;padding:16px;background:#151a26;color:#f3f1ea;border:1px solid rgba(255,255,255,.2);border-radius:14px;box-shadow:0 14px 50px rgba(0,0,0,.55);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}',
+      '#esAnalyticsConsent[hidden]{display:none}',
+      '#esAnalyticsConsent h2{margin:0 28px 6px 0;font-size:16px;line-height:1.2}',
+      '#esAnalyticsConsent p{margin:0 0 13px;color:#b9bfd0}',
+      '#esAnalyticsConsent .es-consent-actions{display:flex;gap:8px;flex-wrap:wrap}',
+      '#esAnalyticsConsent button{min-height:44px;padding:0 14px;border-radius:9px;border:1px solid rgba(255,255,255,.22);background:transparent;color:#f3f1ea;font:700 13px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;cursor:pointer}',
+      '#esAnalyticsConsent button[data-consent="granted"]{background:#ffa227;border-color:#ffa227;color:#150d02}',
+      '#esAnalyticsConsent .es-consent-close{position:absolute;right:8px;top:8px;width:40px;padding:0;border:0;font-size:20px}',
+      '#esAnalyticsConsent button:focus-visible{outline:3px solid rgba(255,162,39,.72);outline-offset:2px}',
+    ].join('');
+    document.head.appendChild(style);
+
+    consentPanel = document.createElement('section');
+    consentPanel.id = 'esAnalyticsConsent';
+    consentPanel.setAttribute('role', 'dialog');
+    consentPanel.setAttribute('aria-labelledby', 'esAnalyticsTitle');
+    consentPanel.innerHTML =
+      '<button class="es-consent-close" type="button" data-consent-close aria-label="Chiudi" hidden>×</button>' +
+      '<h2 id="esAnalyticsTitle">Analytics anonimi</h2>' +
+      '<p>Ci aiutano a capire se la mappa funziona e se il sole risulta allineato. Non registriamo lo schermo, le ricerche o la posizione scelta.</p>' +
+      '<div class="es-consent-actions">' +
+        '<button type="button" data-consent="granted">Accetta analytics</button>' +
+        '<button type="button" data-consent="denied">Continua senza</button>' +
+      '</div>';
+    document.body.appendChild(consentPanel);
+
+    consentPanel.querySelector('[data-consent="granted"]').addEventListener('click', function () { setConsent('granted'); });
+    consentPanel.querySelector('[data-consent="denied"]').addEventListener('click', function () { setConsent('denied'); });
+    consentPanel.querySelector('[data-consent-close]').addEventListener('click', closePreferences);
+    document.querySelectorAll('[data-analytics-preferences]').forEach(function (button) {
+      button.addEventListener('click', openPreferences);
+    });
+
+    consentPanel.hidden = consent !== null;
+  }
+
+  window.EclipseAnalytics = Object.freeze({
+    getConsent: function () { return consent; },
+    isReady: function () { return sdkState === 'ready' && consent === 'granted'; },
+    openPreferences: openPreferences,
+    setConsent: setConsent,
+    track: track,
+  });
+
+  function onDomReady() {
+    domReady = true;
+    createConsentUi();
+    trackPageOpen();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', onDomReady, { once: true });
+  else onDomReady();
+  if (consent === 'granted') loadSdk();
+})(window, document);

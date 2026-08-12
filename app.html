@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Eclipse Scout — mappa</title>
-<script data-goatcounter="https://riccardobosio.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+<script src="analytics.js" data-surface="app" data-app-version="2026.08.12.1"></script>
 <style>
   :root {
     --void: #06070c; --night: rgba(14,17,25,.94); --raise: #1a2030; --edge: rgba(255,255,255,.14);
@@ -93,6 +93,13 @@
   .toggles { display: flex; gap: 16px; margin-top: 8px; font-size: 12.5px; color: var(--dim); }
   .toggles label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
   .toggles input { accent-color: var(--amber); width: 15px; height: 15px; }
+  .overlay-feedback { margin-top: 11px; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; color: var(--dim); font-size: 12.5px; }
+  .overlay-feedback[hidden] { display: none; }
+  .overlay-feedback button { min-width: 48px; min-height: 36px; border: 1px solid var(--edge); border-radius: 8px; background: var(--raise); color: var(--corona); font: 700 12px/1 var(--sans); cursor: pointer; }
+  .overlay-feedback button[aria-pressed="true"] { background: var(--amber); color: var(--amber-ink); border-color: var(--amber); }
+  .overlay-feedback button:disabled { cursor: default; opacity: .8; }
+  #feedbackThanks { color: var(--amber); }
+  .privacy-link { margin-top: 9px; border: 0; padding: 0; background: none; color: var(--dim); text-decoration: underline; font: 500 11px/1.4 var(--sans); cursor: pointer; }
   /* pillola sospesa sopra la barra, sovrapposta al panorama */
   .place-pill {
     position: absolute; top: -54px; left: 50%; transform: translateX(-50%);
@@ -221,6 +228,13 @@
       <label><input type="checkbox" id="tmoon" checked> luna</label>
       <label><input type="checkbox" id="tday"> tutto il giorno</label>
     </div>
+    <div class="overlay-feedback" id="overlayFeedback" hidden>
+      <span>Il sole è allineato?</span>
+      <button type="button" data-aligned="true" aria-pressed="false">Sì</button>
+      <button type="button" data-aligned="false" aria-pressed="false">No</button>
+      <span id="feedbackThanks" role="status"></span>
+    </div>
+    <button class="privacy-link" type="button" data-analytics-preferences>Preferenze analytics</button>
   </div>
 </div>
 
@@ -336,6 +350,46 @@ function getCam() {
   const hfov = 2 * Math.atan(Math.pow(2, 1 - z)) * R2D;
   return { heading, pitch, hfov, zoom: z };
 }
+
+const trackAnalytics = (name, properties) => window.EclipseAnalytics.track(name, properties || {});
+const roundMetric = (value, digits) => {
+  const factor = Math.pow(10, digits || 0);
+  return Math.round(value * factor) / factor;
+};
+function queryLengthBucket(length) {
+  if (!length) return 'empty';
+  if (length <= 10) return '1_10';
+  if (length <= 30) return '11_30';
+  if (length <= 60) return '31_60';
+  return 'over_60';
+}
+function latencyBucket(milliseconds) {
+  if (milliseconds < 300) return 'under_300ms';
+  if (milliseconds < 1000) return '300_999ms';
+  if (milliseconds < 3000) return '1_3s';
+  return 'over_3s';
+}
+function normalizedServiceFailure(status) {
+  if (status === 'ZERO_RESULTS') return 'not_found';
+  if (status === 'REQUEST_DENIED' || status === 'OVER_QUERY_LIMIT') return 'permission_or_quota';
+  if (status === 'UNKNOWN_ERROR') return 'temporary_failure';
+  if (status === 'INVALID_REQUEST') return 'invalid_request';
+  return 'unknown_failure';
+}
+function resetOverlayFeedback() {
+  const box = $('#overlayFeedback');
+  if (!box) return;
+  box.querySelectorAll('button').forEach((button) => {
+    button.disabled = false;
+    button.setAttribute('aria-pressed', 'false');
+  });
+  $('#feedbackThanks').textContent = '';
+}
+function syncOverlayFeedbackVisibility() {
+  const box = $('#overlayFeedback');
+  if (box) box.hidden = window.EclipseAnalytics.getConsent() !== 'granted';
+}
+window.addEventListener('eclipseanalytics:consentchange', syncOverlayFeedbackVisibility);
 
 /* La proiezione interna di StreetViewPanorama usa una focale orizzontale pari a
    (width / 2) * 2^(zoom - 1). Non equivale a supporre FOV = 180 / 2^zoom:
@@ -507,13 +561,23 @@ slider.addEventListener('input', () => {
   d.setHours(Math.floor(slider.value / 60), slider.value % 60, 0, 0);
   setDate(d);
 });
+slider.addEventListener('change', () => {
+  trackAnalytics('eclipse_time_selected', { selection_method: 'slider' });
+});
 
 function updateLocalEclipse(lat, lng) {
   const key = lat.toFixed(2) + ',' + lng.toFixed(2);
   if (key === state.eclipseKey) return;
   state.eclipseKey = key;
   try { state.eclipse = Astronomy.SearchLocalSolarEclipse(new Date(state.date.getTime() - 3 * 86400000), observer(lat, lng)); }
-  catch (e) { state.eclipse = null; }
+  catch (e) {
+    state.eclipse = null;
+    trackAnalytics('application_error_detected', {
+      error_code: 'astronomy_search_failed',
+      component: 'astronomy',
+      action: 'update_eclipse',
+    });
+  }
   buildPresets();
   // lo slider copre la finestra dell'eclissi con un margine
   if (state.eclipse) {
@@ -527,18 +591,21 @@ function updateLocalEclipse(lat, lng) {
 function buildPresets() {
   const box = $('#presets'); box.innerHTML = '';
   const e = state.eclipse;
-  const mk = (top, time, cls, date, secs) => {
+  const mk = (top, time, cls, date, secs, presetName) => {
     const b = document.createElement('button');
     b.innerHTML = top + '<b>' + time + '</b>';
     if (cls) b.className = cls;
-    b.addEventListener('click', () => { const d = new Date(date); if (!secs) d.setSeconds(0, 0); setDate(d); });
+    b.addEventListener('click', () => {
+      const d = new Date(date); if (!secs) d.setSeconds(0, 0); setDate(d);
+      trackAnalytics('eclipse_time_selected', { selection_method: 'preset', preset_name: presetName });
+    });
     box.appendChild(b);
   };
   if (e) {
-    mk('inizio', fmtT(e.partial_begin.time.date), '', e.partial_begin.time.date);
-    if (e.kind === 'total' && e.total_begin) mk('totalità', fmtT(e.total_begin.time.date), 'peak', e.total_begin.time.date, true);
-    else mk('massimo', fmtT(e.peak.time.date), 'peak partial', e.peak.time.date, true);
-    mk('fine', fmtT(e.partial_end.time.date), '', e.partial_end.time.date);
+    mk('inizio', fmtT(e.partial_begin.time.date), '', e.partial_begin.time.date, false, 'partial_begin');
+    if (e.kind === 'total' && e.total_begin) mk('totalità', fmtT(e.total_begin.time.date), 'peak', e.total_begin.time.date, true, 'totality_begin');
+    else mk('massimo', fmtT(e.peak.time.date), 'peak partial', e.peak.time.date, true, 'maximum');
+    mk('fine', fmtT(e.partial_end.time.date), '', e.partial_end.time.date, false, 'partial_end');
   }
   const play = document.createElement('button');
   play.className = 'play'; play.textContent = state.playing ? '⏸' : '▶';
@@ -549,6 +616,10 @@ function buildPresets() {
 let playTimer = null;
 function togglePlay() {
   state.playing = !state.playing;
+  trackAnalytics('eclipse_time_selected', {
+    selection_method: 'playback',
+    playback_action: state.playing ? 'started' : 'stopped',
+  });
   const b = document.querySelector('#presets .play'); if (b) b.textContent = state.playing ? '⏸' : '▶';
   if (state.playing) playTimer = setInterval(() => {
     let d = new Date(state.date.getTime() + 60000);
@@ -591,6 +662,30 @@ $('#btnMore').addEventListener('click', () => {
 $('#tpath').addEventListener('change', (e) => { state.showPath = e.target.checked; render(); });
 $('#tmoon').addEventListener('change', (e) => { state.showMoon = e.target.checked; render(); });
 $('#tday').addEventListener('change', (e) => { state.wholeDay = e.target.checked; render(); });
+document.querySelectorAll('#overlayFeedback [data-aligned]').forEach((button) => {
+  button.addEventListener('click', () => {
+    const pos = getPos();
+    if (!pos || !pano) return;
+    const ph = phaseAt(state.date, pos.lat, pos.lng);
+    const cam = getCam();
+    const isAligned = button.dataset.aligned === 'true';
+    trackAnalytics('overlay_feedback_submitted', {
+      is_aligned: isAligned,
+      camera_pitch_degrees: roundMetric(cam.pitch, 1),
+      camera_zoom: roundMetric(cam.zoom, 2),
+      horizontal_fov_degrees: roundMetric(cam.hfov, 1),
+      eclipse_phase: ph.phase,
+      obscuration_percent: Math.round(ph.frac * 100),
+      sun_altitude_degrees: roundMetric(ph.s.alt, 1),
+    });
+    document.querySelectorAll('#overlayFeedback button').forEach((item) => {
+      item.disabled = true;
+      item.setAttribute('aria-pressed', item === button ? 'true' : 'false');
+    });
+    $('#feedbackThanks').textContent = 'Grazie';
+  });
+});
+syncOverlayFeedbackVisibility();
 
 /* sheet mappa */
 function setSearchStatus(message, isError) {
@@ -633,8 +728,16 @@ $('#btnCoachDone').addEventListener('click', dismissMapCoach);
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('#sheet').classList.contains('open')) openSheet(false); });
 
 function openStreetViewAt(location, options) {
-  const opts = Object.assign({ radius: 160, userInitiated: false, label: '' }, options);
-  if (!svService) return;
+  const opts = Object.assign({ radius: 160, userInitiated: false, label: '', selectionMethod: 'map' }, options);
+  if (!svService) {
+    if (opts.userInitiated) {
+      trackAnalytics('viewpoint_load_failed', {
+        selection_method: opts.selectionMethod,
+        failure_reason: 'service_unavailable',
+      });
+    }
+    return;
+  }
   if (opts.userInitiated) setSearchStatus('Cerco lo Street View più vicino…');
   svService.getPanorama({ location, radius: opts.radius, source: 'outdoor' }, (data, status) => {
     if (status === 'OK') {
@@ -649,12 +752,26 @@ function openStreetViewAt(location, options) {
       pano.setPov({ heading: sun.az, pitch: Math.max(-10, Math.min(30, sun.alt + 4)) });
       savePosition(p);
       if (opts.userInitiated) {
+        updateLocalEclipse(p.lat, p.lng);
+        const ph = phaseAt(state.date, p.lat, p.lng);
+        trackAnalytics('viewpoint_loaded', {
+          selection_method: opts.selectionMethod,
+          eclipse_kind: state.eclipse ? state.eclipse.kind : 'none',
+          eclipse_phase: ph.phase,
+          obscuration_percent: Math.round(ph.frac * 100),
+          sun_altitude_degrees: roundMetric(ph.s.alt, 1),
+        });
+        resetOverlayFeedback();
         dismissMapCoach();
         setSearchStatus(opts.label ? 'Apro Street View vicino a ' + opts.label : 'Street View trovato.');
         openSheet(false);
         showHint(opts.label ? 'Street View: ' + opts.label : 'Punto aggiornato', 2800);
       }
     } else if (opts.userInitiated) {
+      trackAnalytics('viewpoint_load_failed', {
+        selection_method: opts.selectionMethod,
+        failure_reason: normalizedServiceFailure(status),
+      });
       setSearchStatus('Nessuno Street View vicino. Prova una strada o un punto sulla mappa.', true);
       showHint('Qui non c\'è Street View: prova più vicino a una strada', 3400);
     }
@@ -665,7 +782,14 @@ $('#placeSearch').addEventListener('submit', (e) => {
   e.preventDefault();
   const input = $('#placeQuery'), button = $('#btnSearch');
   const query = input.value.trim();
+  const searchStartedAt = performance.now();
   if (!query) {
+    trackAnalytics('place_search_completed', {
+      is_successful: false,
+      result_status: 'empty_query',
+      query_length_bucket: 'empty',
+      latency_bucket: 'under_300ms',
+    });
     setSearchStatus('Scrivi un luogo, una città o un indirizzo.', true);
     input.focus();
     return;
@@ -678,10 +802,22 @@ $('#placeSearch').addEventListener('submit', (e) => {
   geocoder.geocode(request, (results, status) => {
     button.disabled = false;
     if (status !== 'OK' || !results || !results.length) {
+      trackAnalytics('place_search_completed', {
+        is_successful: false,
+        result_status: normalizedServiceFailure(status),
+        query_length_bucket: queryLengthBucket(query.length),
+        latency_bucket: latencyBucket(performance.now() - searchStartedAt),
+      });
       setSearchStatus('Luogo non trovato. Prova con città e paese, per esempio “Burgos, Spagna”.', true);
       return;
     }
     const result = results[0];
+    trackAnalytics('place_search_completed', {
+      is_successful: true,
+      result_status: 'result_found',
+      query_length_bucket: queryLengthBucket(query.length),
+      latency_bucket: latencyBucket(performance.now() - searchStartedAt),
+    });
     map.setCenter(result.geometry.location);
     map.setZoom(17);
     marker.setPosition(result.geometry.location);
@@ -690,6 +826,7 @@ $('#placeSearch').addEventListener('submit', (e) => {
       radius: 300,
       userInitiated: true,
       label: result.formatted_address || query,
+      selectionMethod: 'search',
     });
   });
 });
@@ -698,7 +835,18 @@ $('#placeSearch').addEventListener('submit', (e) => {
 $('#btnSun').addEventListener('click', () => {
   const pos = getPos(); if (!pos) return;
   const s = sunPos(state.date, pos.lat, pos.lng);
-  pano.setPov({ heading: s.az, pitch: Math.max(-10, Math.min(30, s.alt + 4)) });
+  const pitch = Math.max(-10, Math.min(30, s.alt + 4));
+  pano.setPov({ heading: s.az, pitch: pitch });
+  const ph = phaseAt(state.date, pos.lat, pos.lng);
+  const cam = getCam();
+  trackAnalytics('sun_view_centered', {
+    sun_altitude_degrees: roundMetric(s.alt, 1),
+    camera_pitch_degrees: roundMetric(pitch, 1),
+    camera_zoom: roundMetric(cam.zoom, 2),
+    horizontal_fov_degrees: roundMetric(cam.hfov, 1),
+    eclipse_phase: ph.phase,
+    obscuration_percent: Math.round(ph.frac * 100),
+  });
   $('#hint').classList.add('hide');
 });
 
@@ -740,8 +888,22 @@ function initApp() {
   openStreetViewAt(start, { radius: 180 });
   setTimeout(() => $('#hint').classList.add('hide'), 7000);
 }
+window.gm_authFailure = function () {
+  trackAnalytics('application_error_detected', {
+    error_code: 'maps_auth_failed',
+    component: 'google_maps',
+    action: 'initialize',
+  });
+};
+window.mapsScriptLoadFailed = function () {
+  trackAnalytics('application_error_detected', {
+    error_code: 'maps_script_load_failed',
+    component: 'google_maps',
+    action: 'load_script',
+  });
+};
 window.initApp = initApp;
 </script>
-<script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBcnYkcvoYx5I5qQZb1oRaUTy_VmMb2DNU&callback=initApp&v=quarterly&language=it&region=IT"></script>
+<script async onerror="mapsScriptLoadFailed()" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBcnYkcvoYx5I5qQZb1oRaUTy_VmMb2DNU&callback=initApp&v=quarterly&language=it&region=IT"></script>
 </body>
 </html>

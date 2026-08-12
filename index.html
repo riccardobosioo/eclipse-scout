@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eclipse Scout</title>
 <meta name="description" content="Vedi dove sarà il sole durante l'eclissi del 12 agosto 2026, sovrapposto a Street View. Scegli il punto giusto prima di partire.">
-<script data-goatcounter="https://riccardobosio.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+<script src="analytics.js" data-surface="landing" data-app-version="2026.08.12.1"></script>
 <style>
   :root {
     --void: #06070c;
@@ -154,6 +154,8 @@
     font-size: 12.5px; color: var(--dim);
   }
   footer a { color: var(--dim); }
+  .privacy-link { border: 0; padding: 0; background: none; color: var(--dim); text-decoration: underline; font: inherit; cursor: pointer; }
+  .privacy-link:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
   @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
 </style>
 </head>
@@ -172,7 +174,7 @@
   </figure>
 
   <div class="actions">
-    <a class="btn" href="app.html">Apri la mappa<small>Street View con sole e luna, niente da installare</small></a>
+    <a class="btn" id="openMap" href="app.html">Apri la mappa<small>Street View con sole e luna, niente da installare</small></a>
     <a class="btn ghost" id="dl" href="eclipse-scout.zip" download="eclipse-scout.zip">Estensione per Chrome<small>per usarla dentro Google Maps · 59 KB</small></a>
   </div>
 
@@ -210,7 +212,7 @@
   </section>
 
   <footer>
-    Calcoli astronomici con astronomy&#8209;engine, posizioni topocentriche. Orari nel fuso italiano (uguale alla Spagna). Codice aperto su <a href="https://github.com/riccardobosioo/eclipse-scout">GitHub</a>.
+    Calcoli astronomici con astronomy&#8209;engine, posizioni topocentriche. Orari nel fuso italiano (uguale alla Spagna). Codice aperto su <a href="https://github.com/riccardobosioo/eclipse-scout">GitHub</a>. <button class="privacy-link" type="button" data-analytics-preferences>Preferenze analytics</button>.
   </footer>
 </div>
 
@@ -290,11 +292,18 @@
   setTimeout(draw, 2400);
   addEventListener('resize', draw);
 
+  document.getElementById('openMap').addEventListener('click', function () {
+    window.EclipseAnalytics.track('map_opened', {
+      entry_method: 'primary_cta',
+      destination: 'web_app',
+    }, { transport: 'sendBeacon' });
+  });
+
   const dl = document.getElementById('dl');
   dl.addEventListener('click', function () {
-    if (window.goatcounter && window.goatcounter.count) {
-      window.goatcounter.count({ path: 'download-zip', title: 'Download estensione', event: true });
-    }
+    window.EclipseAnalytics.track('extension_downloaded', {
+      artifact_type: 'chrome_extension_zip',
+    });
   });
 })();
 </script>
