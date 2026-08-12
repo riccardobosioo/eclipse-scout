@@ -40,7 +40,7 @@
   .fab {
     width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--edge);
     background: var(--night); color: var(--corona); backdrop-filter: blur(10px);
-    font-size: 17px; cursor: pointer; display: grid; place-items: center;
+    font-size: 17px; cursor: pointer; display: grid; place-items: center; text-decoration: none;
   }
   .fab:active { background: var(--raise); }
   .fab:hover { border-color: rgba(255,162,39,.58); }
@@ -205,6 +205,9 @@
   <button class="fab" id="btnSun" aria-label="Guarda verso il sole" title="Guarda verso il sole">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.66 6.34l1.41-1.41"/></svg>
   </button>
+  <a class="fab" id="btnCamera" href="ar.html" aria-label="Apri la fotocamera AR" title="Apri la fotocamera AR">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5 13 3h-2L9.5 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Z"/><circle cx="12" cy="12" r="4"/></svg>
+  </a>
 </div>
 
 <div id="hint" role="status">Apri la mappa: scegli un punto o cerca un luogo</div>
@@ -858,6 +861,13 @@ $('#btnSun').addEventListener('click', () => {
     obscuration_percent: Math.round(ph.frac * 100),
   });
   $('#hint').classList.add('hide');
+});
+
+/* passa alla modalità AR l'istante assoluto scelto: la posizione arriva dal GPS */
+$('#btnCamera').addEventListener('click', (event) => {
+  const target = new URL('ar.html', location.href);
+  target.searchParams.set('t', state.date.toISOString());
+  event.currentTarget.href = target.href;
 });
 
 /* ---------- Init ---------- */
