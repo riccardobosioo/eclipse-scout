@@ -337,17 +337,17 @@ function getCam() {
   const heading = Number.isFinite(pov.heading) ? pov.heading : 0;
   const pitch = Number.isFinite(pov.pitch) ? pov.pitch : 0;
   const z = Number.isFinite(zoom) ? zoom : 1;
-  return { heading, pitch, hfov: 180 / Math.pow(2, z), zoom: z };
+  const hfov = 2 * Math.atan(Math.pow(2, 1 - z)) * R2D;
+  return { heading, pitch, hfov, zoom: z };
 }
 
-/* Maps JS definisce 180 / 2^zoom come FOV ORIZZONTALE. Va quindi convertito
-   in pixel usando la larghezza del panorama anche in portrait. Il parametro `y`
-   nell'URL di maps.google.com è invece un altro modello (FOV verticale) e non va
-   trasferito a StreetViewPanorama. Usare altezza/lato lungo rende l'errore nullo
-   a pitch 0 ma lo amplifica appena si inclina la vista: esattamente il bug mobile. */
+/* La proiezione interna di StreetViewPanorama usa una focale orizzontale pari a
+   (width / 2) * 2^(zoom - 1). Non equivale a supporre FOV = 180 / 2^zoom:
+   coincidono solo a zoom 1, poi l'approssimazione sposta l'overlay col pitch.
+   La focale dipende sempre dalla larghezza, anche in portrait. */
 function focal(cam, w, h) {
   const width = w || window.innerWidth;
-  const f = (width / 2) / Math.tan((cam.hfov / 2) * D2R);
+  const f = (width / 2) * Math.pow(2, cam.zoom - 1);
   return Number.isFinite(f) && f > 1 ? f : width;
 }
 function project(azDeg, altDeg, cam, w, h) {
@@ -585,7 +585,7 @@ function updateUI(ph) {
     'distanza sole-luna <b>' + ph.sep.toFixed(3) + '°</b><br>' +
     'scala <b>f=' + (fShown ? Math.round(fShown) : '?') + '</b>' +
     ' · zoom <b>' + (cam2 ? cam2.zoom.toFixed(2) : '?') + '</b>' +
-    ' · FOV orizzontale';
+    ' · FOV orizzontale <b>' + (cam2 ? cam2.hfov.toFixed(1) + '°' : '?') + '</b>';
 }
 
 $('#btnMore').addEventListener('click', () => {
